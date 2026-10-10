@@ -1,0 +1,39 @@
+{
+    "records": [
+        {
+            "id": "A001",
+            "date": "2026-09-04",
+            "status": "Present",
+            "checkInTime": "09:15 AM",
+            "checkOutTime": null
+        },
+        {
+            "id": "A002",
+            "date": "2026-09-03",
+            "status": "Present",
+            "checkInTime": "09:20 AM",
+            "checkOutTime": "05:05 PM"
+        },
+        {
+            "id": "A003",
+            "date": "2026-09-02",
+            "status": "Late",
+            "checkInTime": "09:48 AM",
+            "checkOutTime": "05:00 PM"
+        },
+        {
+            "id": "A004",
+            "date": "2026-09-01",
+            "status": "Present",
+            "checkInTime": "09:18 AM",
+            "checkOutTime": "05:02 PM"
+        },
+        {
+            "id": "A005",
+            "date": "2026-08-31",
+            "status": "Absent",
+            "checkInTime": null,
+            "checkOutTime": null
+        }
+    ]
+}
