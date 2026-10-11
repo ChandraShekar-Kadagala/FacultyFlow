@@ -87,23 +87,32 @@ export async function getTodayAttendanceController(
 
         const attendance =
             await getTodayAttendance(
-
                 facultyId
-
             );
 
+        let verification = null;
+        if (attendance && attendance.verificationSessionId) {
+            const VerificationEvent = (await import("../models/VerificationEvent.js")).default;
+            const events = await VerificationEvent.find({
+                verificationSessionId: attendance.verificationSessionId
+            });
+            if (events && events.length > 0) {
+                verification = {
+                    result: attendance.verificationStatus.toUpperCase(),
+                    reason: "Loaded from recent verification session.",
+                    verificationSessionId: attendance.verificationSessionId,
+                    events
+                };
+            }
+        }
 
         return res
-
             .status(200)
-
             .json({
-
                 success:
                     true,
-
-                attendance
-
+                attendance,
+                verification
             });
 
     } catch (error) {

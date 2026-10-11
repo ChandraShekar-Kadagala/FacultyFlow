@@ -1,52 +1,43 @@
 import {
-    addPendingEvent,
+    enqueueOfflineEvent,
     getPendingEvents,
-    removePendingEvent,
-    updatePendingEvent
-} from "./storageService";
+    updateEventStatus,
+    markEventSynced,
+    markEventFailed
+} from "../storage/sqliteQueue.js";
 
-export async function enqueueEvent(event) {
-    const pendingEvent = {
-        ...event,
-        syncStatus: "PENDING_SYNC",
-        retryCount: event.retryCount || 0,
-        lastSyncAttempt: null,
-        lastSyncError: null
-    };
-
-    return addPendingEvent(pendingEvent);
+export async function enqueueEvent(event, userId = "DEFAULT_USER") {
+    return enqueueOfflineEvent({
+        eventId: event.eventId,
+        userId: event.userId || event.facultyId || userId,
+        eventType: event.eventType,
+        payload: event.payload || {},
+        clientTimestamp: event.createdAt || event.clientTimestamp
+    });
 }
 
-export async function getQueue() {
-    return getPendingEvents();
+export async function getQueue(userId = "DEFAULT_USER") {
+    return getPendingEvents(userId);
 }
 
 export async function removeFromQueue(eventId) {
-    return removePendingEvent(eventId);
+    return markEventSynced(eventId);
 }
 
-export async function markRetry(
-    eventId,
-    errorMessage
-) {
-    const queue = await getPendingEvents();
-
-    const currentEvent = queue.find(
-        event => event.eventId === eventId
-    );
-
-    const retryCount =
-        (currentEvent?.retryCount || 0) + 1;
-
-    return updatePendingEvent(
-        eventId,
-        {
-            syncStatus: "PENDING_SYNC",
-            retryCount,
-            lastSyncAttempt:
-                new Date().toISOString(),
-            lastSyncError:
-                errorMessage || "Synchronization failed"
-        }
-    );
+export async function markRetry(eventId, errorMessage) {
+    return updateEventStatus(eventId, "PENDING", {
+        lastError: errorMessage
+    });
 }
+
+export async function markFailed(eventId, errorMessage) {
+    return markEventFailed(eventId, errorMessage);
+}
+
+export default {
+    enqueueEvent,
+    getQueue,
+    removeFromQueue,
+    markRetry,
+    markFailed
+};

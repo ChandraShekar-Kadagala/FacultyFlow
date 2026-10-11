@@ -2,6 +2,7 @@ import AuditLog
     from "../../models/AuditLog.js";
 
 import {
+    AUDIT_ACTIONS,
     AUDIT_RESULTS,
     AUDIT_TARGET_TYPES
 } from "./auditConstants.js";

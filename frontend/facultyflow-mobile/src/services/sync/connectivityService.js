@@ -1,68 +1,41 @@
-export function isOnline() {
-    return navigator.onLine;
+import {
+    isNetworkConnected,
+    getNetworkState,
+    subscribeNetworkStatus,
+    setMockNetworkStatus
+} from "./networkMonitor.js";
+
+/**
+ * Backward-compatible connectivity service delegating to the unified network monitor.
+ */
+export async function isOnline() {
+    return isNetworkConnected();
 }
 
-
-export function getConnectivityStatus() {
-
-    return navigator.onLine
-        ? "ONLINE"
-        : "OFFLINE";
+export async function getConnectivityStatus() {
+    const online = await isNetworkConnected();
+    return online ? "ONLINE" : "OFFLINE";
 }
 
-
-export function subscribeToConnectivity(
-    onOnline,
-    onOffline
-) {
-
-    function handleOnline() {
-
-        if (
-            typeof onOnline ===
-            "function"
-        ) {
-
+export function subscribeToConnectivity(onOnline, onOffline) {
+    return subscribeNetworkStatus((connected) => {
+        if (connected && typeof onOnline === "function") {
             onOnline();
-        }
-    }
-
-
-    function handleOffline() {
-
-        if (
-            typeof onOffline ===
-            "function"
-        ) {
-
+        } else if (!connected && typeof onOffline === "function") {
             onOffline();
         }
-    }
-
-
-    window.addEventListener(
-        "online",
-        handleOnline
-    );
-
-
-    window.addEventListener(
-        "offline",
-        handleOffline
-    );
-
-
-    return function unsubscribe() {
-
-        window.removeEventListener(
-            "online",
-            handleOnline
-        );
-
-
-        window.removeEventListener(
-            "offline",
-            handleOffline
-        );
-    };
+    });
 }
+
+export {
+    isNetworkConnected,
+    getNetworkState,
+    subscribeNetworkStatus,
+    setMockNetworkStatus
+};
+
+export default {
+    isOnline,
+    getConnectivityStatus,
+    subscribeToConnectivity
+};

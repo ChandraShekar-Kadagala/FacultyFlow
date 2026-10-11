@@ -22,7 +22,8 @@ function FacultyProfilePage() {
 
 
     const {
-        accessToken
+        accessToken,
+        user
     } = useAuth();
 
 
@@ -45,6 +46,7 @@ function FacultyProfilePage() {
 
 
     useEffect(() => {
+        const targetId = facultyId || user?.facultyId || user?.userId;
 
         async function loadFaculty() {
 
@@ -57,7 +59,7 @@ function FacultyProfilePage() {
 
                 const response =
                     await getFacultyById(
-                        facultyId,
+                        targetId,
                         accessToken
                     );
 
@@ -81,7 +83,7 @@ function FacultyProfilePage() {
 
 
         if (
-            facultyId &&
+            targetId &&
             accessToken
         ) {
 
@@ -98,7 +100,8 @@ function FacultyProfilePage() {
 
     }, [
         facultyId,
-        accessToken
+        accessToken,
+        user
     ]);
 
 

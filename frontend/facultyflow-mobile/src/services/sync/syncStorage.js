@@ -1,155 +1,68 @@
 import {
-    SYNC_STORAGE_KEY,
-    SYNC_STATUS
-} from "./syncConstants";
+    enqueueOfflineEvent,
+    getPendingEvents,
+    getAllEventsForUser,
+    getEventById,
+    updateEventStatus,
+    markEventSynced,
+    clearUserQueue,
+    getPendingCount
+} from "../storage/sqliteQueue.js";
 
-function readSyncQueue() {
-    try {
-        const storedQueue = localStorage.getItem(
-            SYNC_STORAGE_KEY
-        );
+import { SYNC_STATUS } from "./syncConstants.js";
 
-        if (!storedQueue) {
-            return [];
-        }
+const DEFAULT_USER = "SYSTEM_SESSION";
 
-        const parsedQueue = JSON.parse(
-            storedQueue
-        );
-
-        if (!Array.isArray(parsedQueue)) {
-            return [];
-        }
-
-        return parsedQueue;
-
-    } catch (error) {
-        console.error(
-            "Failed to read sync queue:",
-            error
-        );
-
-        return [];
-    }
-}
-
-
-function writeSyncQueue(queue) {
-    try {
-        localStorage.setItem(
-            SYNC_STORAGE_KEY,
-            JSON.stringify(queue)
-        );
-
-        return true;
-
-    } catch (error) {
-        console.error(
-            "Failed to write sync queue:",
-            error
-        );
-
-        return false;
-    }
-}
-
-
-export function addToSyncQueue(event) {
-    const existingQueue = readSyncQueue();
-
-    const updatedQueue = [
-        ...existingQueue,
-        event
-    ];
-
-    return writeSyncQueue(updatedQueue);
-}
-
-
-export function getSyncQueue() {
-    return readSyncQueue();
-}
-
-
-export function getPendingSyncEvents() {
-    const queue = readSyncQueue();
-
-    return queue.filter(
-        event => event.status === "PENDING_SYNC"
-    );
-}
-
-
-export function getSyncEventById(eventId) {
-    const queue = readSyncQueue();
-
-    return queue.find(
-        event => event.eventId === eventId
-    );
-}
-
-
-export function updateSyncEvent(
-    eventId,
-    updates
-) {
-    const queue = readSyncQueue();
-
-    const updatedQueue = queue.map(event => {
-        if (event.eventId !== eventId) {
-            return event;
-        }
-
-        return {
-            ...event,
-            ...updates
-        };
+export async function addToSyncQueue(event, userId = DEFAULT_USER) {
+    return enqueueOfflineEvent({
+        eventId: event.eventId,
+        userId: event.userId || event.facultyId || userId,
+        eventType: event.eventType,
+        payload: event.payload || {},
+        clientTimestamp: event.createdAt || event.clientTimestamp
     });
-
-    return writeSyncQueue(updatedQueue);
 }
 
-
-export function removeSyncEvent(eventId) {
-    const queue = readSyncQueue();
-
-    const updatedQueue = queue.filter(
-        event => event.eventId !== eventId
-    );
-
-    return writeSyncQueue(updatedQueue);
+export async function getSyncQueue(userId = DEFAULT_USER) {
+    return getAllEventsForUser(userId);
 }
 
-
-export function clearSyncQueue() {
-    try {
-        localStorage.removeItem(
-            SYNC_STORAGE_KEY
-        );
-
-        return true;
-
-    } catch (error) {
-        console.error(
-            "Failed to clear sync queue:",
-            error
-        );
-
-        return false;
-    }
+export async function getPendingSyncEvents(userId = DEFAULT_USER) {
+    return getPendingEvents(userId);
 }
 
-export function getSyncQueueSize() {
-    const queue = readSyncQueue();
-    return queue.length;
+export async function getSyncEventById(eventId) {
+    return getEventById(eventId);
 }
 
-export function getRetryableEvents() {
-    const queue = readSyncQueue();
-
-    return queue.filter(
-        event =>
-            event.status === SYNC_STATUS.PENDING ||
-            event.status === SYNC_STATUS.FAILED
-    );
+export async function updateSyncEvent(eventId, updates) {
+    return updateEventStatus(eventId, updates.status || SYNC_STATUS.PENDING, updates);
 }
+
+export async function removeSyncEvent(eventId) {
+    return markEventSynced(eventId);
+}
+
+export async function clearSyncQueue(userId = DEFAULT_USER) {
+    return clearUserQueue(userId);
+}
+
+export async function getSyncQueueSize(userId = DEFAULT_USER) {
+    return getPendingCount(userId);
+}
+
+export async function getRetryableEvents(userId = DEFAULT_USER) {
+    return getPendingEvents(userId);
+}
+
+export default {
+    addToSyncQueue,
+    getSyncQueue,
+    getPendingSyncEvents,
+    getSyncEventById,
+    updateSyncEvent,
+    removeSyncEvent,
+    clearSyncQueue,
+    getSyncQueueSize,
+    getRetryableEvents
+};

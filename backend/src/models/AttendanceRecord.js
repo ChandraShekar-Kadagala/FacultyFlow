@@ -154,6 +154,16 @@ const attendanceRecordSchema =
             type: String,
             default: null,
             index: true
+        },
+        checkInSyncEventId: {
+            type: String,
+            default: null,
+            index: true
+        },
+        checkOutSyncEventId: {
+            type: String,
+            default: null,
+            index: true
         }
 
     }, {

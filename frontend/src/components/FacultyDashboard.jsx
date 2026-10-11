@@ -349,6 +349,8 @@ function FacultyDashboard() {
 
                         setVerification(null);
 
+                    } else if (response?.verification) {
+                        setVerification(response.verification);
                     }
 
                 } catch (error) {
@@ -762,7 +764,7 @@ function FacultyDashboard() {
                     type="button"
                     onClick={() =>
                         navigate(
-                            `/faculty/${facultyId}`
+                            `/profile`
                         )
                     }
                 >

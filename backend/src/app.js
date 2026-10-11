@@ -31,6 +31,8 @@ import locationRoutes
     from "./routes/locationRoutes.js";
     import syncRoutes
     from "./routes/syncRoutes.js";
+import { timingMiddleware } from "./middleware/timingMiddleware.js";
+
 /* ========================================
    CORS
 ======================================== */
@@ -42,6 +44,8 @@ app.use(
         credentials: true
     })
 );
+
+app.use(timingMiddleware);
 
 
 /* ========================================

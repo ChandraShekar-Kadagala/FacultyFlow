@@ -1,46 +1,32 @@
-import {
-    useEffect,
-    useState
-} from "react";
+import { useEffect, useState } from "react";
+import { isNetworkConnected, subscribeNetworkStatus } from "./networkMonitor.js";
 
-import {
-    getConnectivityStatus,
-    subscribeToConnectivity
-} from "./connectivityService";
-
-
-function useConnectivity() {
-    const [
-        status,
-        setStatus
-    ] = useState(
-        getConnectivityStatus()
-    );
-
+/**
+ * Hook providing real-time network connectivity state across mobile, web, and tests.
+ */
+export default function useConnectivity() {
+    const [isOnline, setIsOnline] = useState(true);
 
     useEffect(() => {
-        const unsubscribe =
-            subscribeToConnectivity(
-                () => {
-                    setStatus("ONLINE");
-                },
+        let isMounted = true;
 
-                () => {
-                    setStatus("OFFLINE");
-                }
-            );
+        isNetworkConnected().then((online) => {
+            if (isMounted) setIsOnline(online);
+        });
 
+        const unsubscribe = subscribeNetworkStatus((connected) => {
+            if (isMounted) setIsOnline(connected);
+        });
 
-        return unsubscribe;
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, []);
 
-
     return {
-        status,
-        isOnline: status === "ONLINE",
-        isOffline: status === "OFFLINE"
+        isOnline,
+        isOffline: !isOnline,
+        status: isOnline ? "ONLINE" : "OFFLINE"
     };
 }
-
-
-export default useConnectivity;

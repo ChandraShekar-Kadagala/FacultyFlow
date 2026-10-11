@@ -191,9 +191,6 @@ const attendancePolicySchema =
                     true,
 
                 default:
-                    true,
-
-                index:
                     true
 
             }

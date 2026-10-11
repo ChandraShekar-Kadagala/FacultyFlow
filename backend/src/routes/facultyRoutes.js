@@ -37,12 +37,19 @@ router.get(
 
 
 // Get one faculty
-// Admin only
-
+// Admin can view any faculty; Faculty can view their own profile
 router.get(
     "/:facultyId",
     authenticateToken,
-    requireRole("admin"),
+    (req, res, next) => {
+        if (req.user?.role === "admin" || req.user?.facultyId === req.params.facultyId) {
+            return next();
+        }
+        return res.status(403).json({
+            success: false,
+            message: "You do not have permission to access this resource."
+        });
+    },
     getFaculty
 );
 

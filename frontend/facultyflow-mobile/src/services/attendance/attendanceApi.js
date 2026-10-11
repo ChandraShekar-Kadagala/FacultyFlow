@@ -1,5 +1,4 @@
-import apiRequest
-    from "../api/apiClient";
+import { apiRequest } from "../api/apiClient.js";
 
 
 // ============================================================

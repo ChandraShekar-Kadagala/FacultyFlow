@@ -1,911 +1,529 @@
 import {
     ActivityIndicator,
-    Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
-import { useState } from "react";
-
-import useAuth from "../../hooks/useAuth";
 import { useAttendance } from "../../context/AttendanceContext";
+import SyncStatus from "../../components/SyncStatus";
 
-export default function Attendance() {
-    const { user } = useAuth();
-
-    const {
-        attendance,
-        processing,
-        performCheckIn,
-        performCheckOut,
-        resetAttendance
-    } = useAttendance();
-
-    const [refreshing, setRefreshing] =
-        useState(false);
-
-    const isCheckedIn =
-        attendance?.status === "CHECKED_IN" ||
-        attendance?.status === "PRESENT";
-
-    const isCheckedOut =
-        attendance?.status === "CHECKED_OUT";
-
-    const canCheckIn =
-        !isCheckedIn &&
-        !isCheckedOut &&
-        !processing;
-
-    const canCheckOut =
-        isCheckedIn &&
-        !isCheckedOut &&
-        !processing;
-
-    async function handleCheckIn() {
-        if (!user || !canCheckIn) {
-            return;
-        }
-
-        await performCheckIn(user);
+function formatTimeString(isoString) {
+    if (!isoString) return "—";
+    try {
+        const d = new Date(isoString);
+        if (Number.isNaN(d.getTime())) return isoString;
+        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch (_err) {
+        return isoString;
     }
-
-    async function handleCheckOut() {
-        if (!user || !canCheckOut) {
-            return;
-        }
-
-        await performCheckOut(user);
-    }
-
-    async function handleRefresh() {
-        setRefreshing(true);
-
-        await new Promise(resolve => {
-            setTimeout(resolve, 700);
-        });
-
-        setRefreshing(false);
-    }
-
-    function getStatusTitle() {
-        if (isCheckedOut) {
-            return "Attendance completed";
-        }
-
-        if (isCheckedIn) {
-            return "You are checked in";
-        }
-
-        return "Ready to check in";
-    }
-
-    function getStatusDescription() {
-        if (isCheckedOut) {
-            return "Your attendance for today has been completed.";
-        }
-
-        if (isCheckedIn) {
-            return "Your check-in has been recorded. Complete check-out when you leave.";
-        }
-
-        return "Complete the required verification checks before recording attendance.";
-    }
-
-    function getStatusColor() {
-        if (isCheckedOut) {
-            return "#16A34A";
-        }
-
-        if (isCheckedIn) {
-            return "#2563EB";
-        }
-
-        return "#64748B";
-    }
-
-    function formatValue(value) {
-        if (!value) {
-            return "--";
-        }
-
-        return value;
-    }
-
-    return (
-        <View style={styles.screen}>
-
-            <ScrollView
-                contentContainerStyle={styles.content}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                    />
-                }
-            >
-
-                <View style={styles.header}>
-
-                    <View>
-                        <Text style={styles.eyebrow}>
-                            ATTENDANCE
-                        </Text>
-
-                        <Text style={styles.title}>
-                            Today&apos;s Attendance
-                        </Text>
-
-                        <Text style={styles.subtitle}>
-                            Record and monitor your attendance securely.
-                        </Text>
-                    </View>
-
-                    <View style={styles.dateBadge}>
-                        <Text style={styles.dateBadgeText}>
-                            TODAY
-                        </Text>
-                    </View>
-
-                </View>
-
-                <View style={styles.statusCard}>
-
-                    <View
-                        style={[
-                            styles.statusIndicator,
-                            {
-                                backgroundColor:
-                                    getStatusColor()
-                            }
-                        ]}
-                    />
-
-                    <View style={styles.statusContent}>
-
-                        <Text style={styles.statusLabel}>
-                            CURRENT STATUS
-                        </Text>
-
-                        <Text style={styles.statusTitle}>
-                            {getStatusTitle()}
-                        </Text>
-
-                        <Text style={styles.statusDescription}>
-                            {getStatusDescription()}
-                        </Text>
-
-                    </View>
-
-                </View>
-
-                <View style={styles.timeGrid}>
-
-                    <View style={styles.timeCard}>
-                        <Text style={styles.timeLabel}>
-                            CHECK IN
-                        </Text>
-
-                        <Text style={styles.timeValue}>
-                            {formatValue(
-                                attendance?.checkInTime
-                            )}
-                        </Text>
-                    </View>
-
-                    <View style={styles.timeCard}>
-                        <Text style={styles.timeLabel}>
-                            CHECK OUT
-                        </Text>
-
-                        <Text style={styles.timeValue}>
-                            {formatValue(
-                                attendance?.checkOutTime
-                            )}
-                        </Text>
-                    </View>
-
-                </View>
-
-                <View style={styles.verificationCard}>
-
-                    <View style={styles.sectionHeader}>
-
-                        <View>
-                            <Text style={styles.sectionEyebrow}>
-                                VERIFICATION
-                            </Text>
-
-                            <Text style={styles.sectionTitle}>
-                                Attendance checks
-                            </Text>
-                        </View>
-
-                        <View style={styles.demoBadge}>
-                            <Text style={styles.demoBadgeText}>
-                                ACTIVE
-                            </Text>
-                        </View>
-
-                    </View>
-
-                    <Text style={styles.verificationDescription}>
-                        Required verification signals are evaluated
-                        before attendance is recorded.
-                    </Text>
-
-                    <VerificationRow
-                        label="Identity"
-                        value={
-                            attendance?.lastVerification
-                                ?.identity
-                        }
-                    />
-
-                    <VerificationRow
-                        label="Schedule"
-                        value={
-                            attendance?.lastVerification
-                                ?.schedule
-                        }
-                    />
-
-                    <VerificationRow
-                        label="Overall verification"
-                        value={
-                            attendance?.lastVerification
-                                ?.overall
-                        }
-                        last
-                    />
-
-                </View>
-
-                {attendance?.lastError && (
-                    <View style={styles.errorCard}>
-
-                        <Text style={styles.errorLabel}>
-                            ATTENDANCE ACTION
-                        </Text>
-
-                        <Text style={styles.errorTitle}>
-                            Action could not be completed
-                        </Text>
-
-                        <Text style={styles.errorMessage}>
-                            {attendance.lastError}
-                        </Text>
-
-                    </View>
-                )}
-
-                <View style={styles.actionCard}>
-
-                    <Text style={styles.actionEyebrow}>
-                        ATTENDANCE ACTION
-                    </Text>
-
-                    <Text style={styles.actionTitle}>
-                        {getStatusTitle()}
-                    </Text>
-
-                    <Text style={styles.actionDescription}>
-                        {getStatusDescription()}
-                    </Text>
-
-                    <View style={styles.actionButtons}>
-
-                        <Pressable
-                            onPress={handleCheckIn}
-                            disabled={!canCheckIn}
-                            style={({ pressed }) => [
-                                styles.primaryButton,
-                                !canCheckIn &&
-                                    styles.disabledButton,
-                                pressed &&
-                                    canCheckIn &&
-                                    styles.pressedButton
-                            ]}
-                        >
-
-                            {processing ? (
-                                <ActivityIndicator
-                                    color="#FFFFFF"
-                                />
-                            ) : (
-                                <Text
-                                    style={
-                                        styles.primaryButtonText
-                                    }
-                                >
-                                    Check In
-                                </Text>
-                            )}
-
-                        </Pressable>
-
-                        <Pressable
-                            onPress={handleCheckOut}
-                            disabled={!canCheckOut}
-                            style={({ pressed }) => [
-                                styles.secondaryButton,
-                                !canCheckOut &&
-                                    styles.disabledSecondaryButton,
-                                pressed &&
-                                    canCheckOut &&
-                                    styles.pressedSecondaryButton
-                            ]}
-                        >
-
-                            <Text
-                                style={
-                                    !canCheckOut
-                                        ? styles.disabledSecondaryText
-                                        : styles.secondaryButtonText
-                                }
-                            >
-                                Check Out
-                            </Text>
-
-                        </Pressable>
-
-                    </View>
-
-                </View>
-
-                <View style={styles.syncCard}>
-
-                    <View>
-                        <Text style={styles.syncLabel}>
-                            SYNC STATUS
-                        </Text>
-
-                        <Text style={styles.syncValue}>
-                            {attendance?.syncStatus ||
-                                "LOCAL"}
-                        </Text>
-                    </View>
-
-                    <View style={styles.syncDot} />
-
-                </View>
-
-                {isCheckedOut && (
-                    <Pressable
-                        onPress={resetAttendance}
-                        style={styles.resetButton}
-                    >
-                        <Text style={styles.resetText}>
-                            Reset Demo Attendance
-                        </Text>
-                    </Pressable>
-                )}
-
-                <View style={styles.securityNote}>
-
-                    <Text style={styles.securityTitle}>
-                        FacultyFlow security
-                    </Text>
-
-                    <Text style={styles.securityText}>
-                        Attendance decisions will be
-                        authoritative on the backend in the
-                        production architecture. Device and
-                        verification signals shown here are
-                        part of the current application layer.
-                    </Text>
-
-                </View>
-
-            </ScrollView>
-
-        </View>
-    );
 }
 
-function VerificationRow({
-    label,
-    value,
-    last = false
-}) {
-    const passed = value === true;
+function formatDateString(dateStr) {
+    if (!dateStr) return new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+    try {
+        const d = new Date(dateStr);
+        if (Number.isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+    } catch (_err) {
+        return dateStr;
+    }
+}
 
-    const failed =
-        value === false;
+export default function AttendanceScreen() {
+    const {
+        attendance,
+        loading,
+        actionLoading,
+        error,
+        successMessage,
+        isCheckedIn,
+        isCheckedOut,
+        canCheckIn,
+        canCheckOut,
+        attendanceStatus,
+        verificationStatus,
+        refreshAttendance,
+        performCheckIn,
+        performCheckOut,
+        clearMessages
+    } = useAttendance();
 
-    const statusText =
-        passed
-            ? "Passed"
-            : failed
-                ? "Failed"
-                : "Pending";
-
-    const statusStyle =
-        passed
-            ? styles.verificationPassed
-            : failed
-                ? styles.verificationFailed
-                : styles.verificationPending;
+    const isVerified = verificationStatus === "Verified" || verificationStatus === "VERIFIED";
 
     return (
-        <View
-            style={[
-                styles.verificationRow,
-                !last && styles.verificationRowBorder
-            ]}
-        >
-
-            <View style={styles.verificationLeft}>
-
-                <View
-                    style={[
-                        styles.verificationDot,
-                        passed &&
-                            styles.verificationDotPassed,
-                        failed &&
-                            styles.verificationDotFailed,
-                        !passed &&
-                            !failed &&
-                            styles.verificationDotPending
-                    ]}
+        <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+                <RefreshControl
+                    refreshing={loading}
+                    onRefresh={() => refreshAttendance(true)}
+                    tintColor="#2563EB"
+                    colors={["#2563EB"]}
                 />
-
-                <Text style={styles.verificationName}>
-                    {label}
+            }
+        >
+            {/* Header */}
+            <View style={styles.header}>
+                <Text style={styles.eyebrow}>FACULTY WORKFLOW</Text>
+                <Text style={styles.title}>Mark Attendance</Text>
+                <Text style={styles.subtitle}>
+                    Record your daily presence and complete check-out under institutional policy.
                 </Text>
-
             </View>
 
-            <Text
-                style={[
-                    styles.verificationStatus,
-                    statusStyle
-                ]}
-            >
-                {statusText}
-            </Text>
+            {/* Success Message Banner */}
+            {successMessage ? (
+                <View style={styles.successBanner}>
+                    <Ionicons name="checkmark-circle" size={22} color="#16A34A" style={{ marginRight: 8 }} />
+                    <Text style={styles.successBannerText}>{successMessage}</Text>
+                    <TouchableOpacity onPress={clearMessages} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <Ionicons name="close" size={18} color="#16A34A" />
+                    </TouchableOpacity>
+                </View>
+            ) : null}
 
-        </View>
+            {/* Error Message Banner */}
+            {error ? (
+                <View style={styles.errorBanner}>
+                    <Ionicons name="alert-circle" size={22} color="#DC2626" style={{ marginRight: 8 }} />
+                    <Text style={styles.errorBannerText}>{error}</Text>
+                    <TouchableOpacity onPress={clearMessages} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <Ionicons name="close" size={18} color="#DC2626" />
+                    </TouchableOpacity>
+                </View>
+            ) : null}
+
+            {/* Offline Sync Status Card */}
+            <SyncStatus />
+
+            {/* Active Status Card */}
+            <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                    <View>
+                        <Text style={styles.sessionLabel}>SESSION DATE</Text>
+                        <Text style={styles.sessionDate}>{formatDateString(attendance?.date)}</Text>
+                    </View>
+                    <View style={[
+                        styles.statusPill,
+                        attendance?.syncStatus === "PENDING_SYNC" ? styles.amberPill :
+                        attendanceStatus === "Present" ? styles.greenPill :
+                        attendanceStatus === "Late" ? styles.amberPill : styles.grayPill
+                    ]}>
+                        <Text style={[
+                            styles.statusPillText,
+                            attendance?.syncStatus === "PENDING_SYNC" ? styles.amberPillText :
+                            attendanceStatus === "Present" ? styles.greenPillText :
+                            attendanceStatus === "Late" ? styles.amberPillText : styles.grayPillText
+                        ]}>
+                            {attendance?.syncStatus === "PENDING_SYNC" ? "PENDING SYNC" : attendanceStatus.toUpperCase()}
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Timestamps */}
+                <View style={styles.timestampsGrid}>
+                    <View style={styles.timeBox}>
+                        <View style={styles.timeIconWrap}>
+                            <Ionicons name="log-in-outline" size={18} color="#2563EB" />
+                        </View>
+                        <View>
+                            <Text style={styles.timeBoxLabel}>Check-In Time</Text>
+                            <Text style={styles.timeBoxValue}>{formatTimeString(attendance?.checkInTime)}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.timeBox}>
+                        <View style={[styles.timeIconWrap, { backgroundColor: isCheckedOut ? "#FEF3C7" : "#F1F5F9" }]}>
+                            <Ionicons name="log-out-outline" size={18} color={isCheckedOut ? "#D97706" : "#94A3B8"} />
+                        </View>
+                        <View>
+                            <Text style={styles.timeBoxLabel}>Check-Out Time</Text>
+                            <Text style={styles.timeBoxValue}>{formatTimeString(attendance?.checkOutTime)}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Security Verification Link */}
+                <TouchableOpacity
+                    style={styles.verificationBar}
+                    onPress={() => router.push("/(app)/verification")}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons
+                        name={isVerified ? "shield-checkmark" : "shield-outline"}
+                        size={18}
+                        color={isVerified ? "#16A34A" : "#D97706"}
+                        style={{ marginRight: 8 }}
+                    />
+                    <Text style={styles.verificationBarLabel}>Security Verification:</Text>
+                    <Text style={[styles.verificationBarStatus, { color: isVerified ? "#16A34A" : "#D97706" }]}>
+                        {isVerified ? "Verified (Server Confirmed)" : "Pending / Partial"}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={14} color="#94A3B8" style={{ marginLeft: "auto" }} />
+                </TouchableOpacity>
+
+                {/* Action Buttons based on Attendance State Machine */}
+                <View style={styles.actionsContainer}>
+                    {loading ? (
+                        <View style={styles.btnLoadingWrap}>
+                            <ActivityIndicator size="small" color="#2563EB" />
+                            <Text style={styles.btnLoadingText}>Syncing attendance status...</Text>
+                        </View>
+                    ) : !isCheckedIn ? (
+                        <TouchableOpacity
+                            style={[styles.primaryBtn, actionLoading && styles.btnDisabled]}
+                            onPress={performCheckIn}
+                            disabled={!canCheckIn}
+                            activeOpacity={0.8}
+                        >
+                            {actionLoading ? (
+                                <>
+                                    <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                                    <Text style={styles.btnText}>Verifying Signals &amp; Checking In...</Text>
+                                </>
+                            ) : (
+                                <>
+                                    <Ionicons name="finger-print-outline" size={22} color="#FFFFFF" style={{ marginRight: 8 }} />
+                                    <Text style={styles.btnText}>Submit Check-In</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    ) : !isCheckedOut ? (
+                        <TouchableOpacity
+                            style={[styles.checkoutBtn, actionLoading && styles.btnDisabled]}
+                            onPress={performCheckOut}
+                            disabled={!canCheckOut}
+                            activeOpacity={0.8}
+                        >
+                            {actionLoading ? (
+                                <>
+                                    <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                                    <Text style={styles.btnText}>Submitting Check-Out...</Text>
+                                </>
+                            ) : (
+                                <>
+                                    <Ionicons name="log-out-outline" size={22} color="#FFFFFF" style={{ marginRight: 8 }} />
+                                    <Text style={styles.btnText}>Submit Check-Out</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={styles.allDoneBox}>
+                            <Ionicons name="checkmark-done-circle" size={24} color="#16A34A" style={{ marginRight: 8 }} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.allDoneTitle}>Attendance Completed</Text>
+                                <Text style={styles.allDoneSubtitle}>
+                                    Both check-in and check-out have been recorded for today.
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+                </View>
+            </View>
+
+            {/* Attendance Policy Guidance */}
+            <View style={styles.policyCard}>
+                <View style={styles.policyHeader}>
+                    <Ionicons name="information-circle-outline" size={20} color="#2563EB" style={{ marginRight: 8 }} />
+                    <Text style={styles.policyTitle}>Policy Guidelines</Text>
+                </View>
+                <Text style={styles.policyItem}>
+                  • Check-in is evaluated against institution schedule windows (default 09:30 - 17:00).
+                </Text>
+                <Text style={styles.policyItem}>
+                  • Timestamps are authoritatively assigned by the server at the moment of request.
+                </Text>
+                <Text style={styles.policyItem}>
+                  • Check-out can only be recorded once per day following a confirmed check-in.
+                </Text>
+            </View>
+        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-
-    screen: {
+    container: {
         flex: 1,
-        backgroundColor: "#F4F7FB"
+        backgroundColor: "#F8FAFC"
     },
-
     content: {
-        paddingHorizontal: 20,
-        paddingTop: 20,
+        padding: 20,
+        paddingTop: 56,
         paddingBottom: 40
     },
-
     header: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 22
+        marginBottom: 20
     },
-
     eyebrow: {
         fontSize: 11,
-        fontWeight: "800",
-        letterSpacing: 1.5,
+        fontWeight: "700",
         color: "#2563EB",
-        marginBottom: 6
-    },
-
-    title: {
-        fontSize: 28,
-        fontWeight: "800",
-        color: "#0F172A",
-        marginBottom: 6
-    },
-
-    subtitle: {
-        maxWidth: 300,
-        fontSize: 14,
-        lineHeight: 21,
-        color: "#64748B"
-    },
-
-    dateBadge: {
-        paddingHorizontal: 11,
-        paddingVertical: 8,
-        borderRadius: 10,
-        backgroundColor: "#E8F0FF",
-        borderWidth: 1,
-        borderColor: "#C9DBFF"
-    },
-
-    dateBadgeText: {
-        fontSize: 10,
-        fontWeight: "800",
         letterSpacing: 1,
-        color: "#2563EB"
-    },
-
-    statusCard: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "#FFFFFF",
-        borderRadius: 18,
-        padding: 18,
-        borderWidth: 1,
-        borderColor: "#E2E8F0",
-        marginBottom: 14,
-        shadowColor: "#0F172A",
-        shadowOffset: {
-            width: 0,
-            height: 4
-        },
-        shadowOpacity: 0.06,
-        shadowRadius: 12,
-        elevation: 2
-    },
-
-    statusIndicator: {
-        width: 12,
-        height: 56,
-        borderRadius: 8,
-        marginRight: 15
-    },
-
-    statusContent: {
-        flex: 1
-    },
-
-    statusLabel: {
-        fontSize: 10,
-        fontWeight: "800",
-        letterSpacing: 1.2,
-        color: "#94A3B8",
         marginBottom: 4
     },
-
-    statusTitle: {
-        fontSize: 20,
+    title: {
+        fontSize: 26,
         fontWeight: "800",
         color: "#0F172A",
-        marginBottom: 5
+        letterSpacing: -0.4
     },
-
-    statusDescription: {
+    subtitle: {
         fontSize: 13,
-        lineHeight: 19,
-        color: "#64748B"
+        color: "#64748B",
+        lineHeight: 18,
+        marginTop: 4
     },
-
-    timeGrid: {
+    successBanner: {
         flexDirection: "row",
-        gap: 12,
-        marginBottom: 14
+        alignItems: "center",
+        backgroundColor: "#F0FDF4",
+        borderWidth: 1,
+        borderColor: "#BBF7D0",
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 16
     },
-
-    timeCard: {
+    successBannerText: {
         flex: 1,
+        fontSize: 13,
+        fontWeight: "600",
+        color: "#166534"
+    },
+    errorBanner: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FEF2F2",
+        borderWidth: 1,
+        borderColor: "#FECACA",
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 16
+    },
+    errorBannerText: {
+        flex: 1,
+        fontSize: 13,
+        fontWeight: "600",
+        color: "#991B1B"
+    },
+    card: {
         backgroundColor: "#FFFFFF",
         borderRadius: 16,
-        padding: 17,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: "#E2E8F0",
+        marginBottom: 20,
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2
+    },
+    cardHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center"
+    },
+    sessionLabel: {
+        fontSize: 11,
+        fontWeight: "700",
+        color: "#64748B",
+        letterSpacing: 0.8
+    },
+    sessionDate: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#0F172A",
+        marginTop: 2
+    },
+    statusPill: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 20
+    },
+    statusPillText: {
+        fontSize: 11,
+        fontWeight: "700"
+    },
+    greenPill: {
+        backgroundColor: "#DCFCE7"
+    },
+    greenPillText: {
+        color: "#15803D"
+    },
+    amberPill: {
+        backgroundColor: "#FEF3C7"
+    },
+    amberPillText: {
+        color: "#B45309"
+    },
+    grayPill: {
+        backgroundColor: "#F1F5F9"
+    },
+    grayPillText: {
+        color: "#64748B"
+    },
+    divider: {
+        height: 1,
+        backgroundColor: "#F1F5F9",
+        marginVertical: 16
+    },
+    timestampsGrid: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        gap: 12,
+        marginBottom: 16
+    },
+    timeBox: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F8FAFC",
+        borderRadius: 12,
+        padding: 12,
         borderWidth: 1,
         borderColor: "#E2E8F0"
     },
-
-    timeLabel: {
-        fontSize: 10,
-        fontWeight: "800",
-        letterSpacing: 1.1,
-        color: "#94A3B8",
-        marginBottom: 8
-    },
-
-    timeValue: {
-        fontSize: 20,
-        fontWeight: "800",
-        color: "#0F172A"
-    },
-
-    verificationCard: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: 18,
-        padding: 18,
-        borderWidth: 1,
-        borderColor: "#E2E8F0",
-        marginBottom: 14
-    },
-
-    sectionHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 8
-    },
-
-    sectionEyebrow: {
-        fontSize: 10,
-        fontWeight: "800",
-        letterSpacing: 1.2,
-        color: "#2563EB",
-        marginBottom: 4
-    },
-
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: "800",
-        color: "#0F172A"
-    },
-
-    demoBadge: {
-        paddingHorizontal: 9,
-        paddingVertical: 6,
+    timeIconWrap: {
+        width: 34,
+        height: 34,
         borderRadius: 8,
-        backgroundColor: "#DCFCE7"
-    },
-
-    demoBadgeText: {
-        fontSize: 9,
-        fontWeight: "800",
-        letterSpacing: 0.8,
-        color: "#15803D"
-    },
-
-    verificationDescription: {
-        fontSize: 13,
-        lineHeight: 19,
-        color: "#64748B",
-        marginBottom: 8
-    },
-
-    verificationRow: {
-        minHeight: 52,
-        flexDirection: "row",
+        backgroundColor: "#EFF6FF",
         alignItems: "center",
-        justifyContent: "space-between"
-    },
-
-    verificationRowBorder: {
-        borderBottomWidth: 1,
-        borderBottomColor: "#EEF2F7"
-    },
-
-    verificationLeft: {
-        flexDirection: "row",
-        alignItems: "center"
-    },
-
-    verificationDot: {
-        width: 9,
-        height: 9,
-        borderRadius: 5,
+        justifyContent: "center",
         marginRight: 10
     },
-
-    verificationDotPassed: {
-        backgroundColor: "#16A34A"
-    },
-
-    verificationDotFailed: {
-        backgroundColor: "#DC2626"
-    },
-
-    verificationDotPending: {
-        backgroundColor: "#CBD5E1"
-    },
-
-    verificationName: {
-        fontSize: 14,
+    timeBoxLabel: {
+        fontSize: 11,
         fontWeight: "600",
-        color: "#334155"
+        color: "#64748B"
     },
-
-    verificationStatus: {
+    timeBoxValue: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#0F172A",
+        marginTop: 1
+    },
+    verificationBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F8FAFC",
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderWidth: 1,
+        borderColor: "#E2E8F0",
+        marginBottom: 16
+    },
+    verificationBarLabel: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: "#64748B",
+        marginRight: 6
+    },
+    verificationBarStatus: {
         fontSize: 12,
         fontWeight: "700"
     },
-
-    verificationPassed: {
-        color: "#15803D"
+    actionsContainer: {
+        marginTop: 4
     },
-
-    verificationFailed: {
-        color: "#DC2626"
-    },
-
-    verificationPending: {
-        color: "#94A3B8"
-    },
-
-    errorCard: {
-        backgroundColor: "#FFF7F7",
-        borderRadius: 16,
-        padding: 17,
-        borderWidth: 1,
-        borderColor: "#FECACA",
-        marginBottom: 14
-    },
-
-    errorLabel: {
-        fontSize: 10,
-        fontWeight: "800",
-        letterSpacing: 1.1,
-        color: "#DC2626",
-        marginBottom: 5
-    },
-
-    errorTitle: {
-        fontSize: 16,
-        fontWeight: "800",
-        color: "#991B1B",
-        marginBottom: 4
-    },
-
-    errorMessage: {
-        fontSize: 13,
-        lineHeight: 19,
-        color: "#B91C1C"
-    },
-
-    actionCard: {
-        backgroundColor: "#0F172A",
-        borderRadius: 20,
-        padding: 20,
-        marginBottom: 14
-    },
-
-    actionEyebrow: {
-        fontSize: 10,
-        fontWeight: "800",
-        letterSpacing: 1.2,
-        color: "#93C5FD",
-        marginBottom: 6
-    },
-
-    actionTitle: {
-        fontSize: 22,
-        fontWeight: "800",
-        color: "#FFFFFF",
-        marginBottom: 6
-    },
-
-    actionDescription: {
-        fontSize: 13,
-        lineHeight: 19,
-        color: "#CBD5E1",
-        marginBottom: 18
-    },
-
-    actionButtons: {
-        gap: 10
-    },
-
-    primaryButton: {
-        minHeight: 52,
-        borderRadius: 13,
+    btnLoadingWrap: {
+        paddingVertical: 12,
         alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#2563EB"
+        justifyContent: "center"
     },
-
-    primaryButtonText: {
-        fontSize: 15,
-        fontWeight: "800",
-        color: "#FFFFFF"
+    btnLoadingText: {
+        fontSize: 13,
+        color: "#64748B",
+        fontWeight: "500",
+        marginTop: 6
     },
-
-    secondaryButton: {
-        minHeight: 52,
-        borderRadius: 13,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#FFFFFF",
-        borderWidth: 1,
-        borderColor: "#CBD5E1"
-    },
-
-    secondaryButtonText: {
-        fontSize: 15,
-        fontWeight: "800",
-        color: "#0F172A"
-    },
-
-    disabledButton: {
-        backgroundColor: "#475569"
-    },
-
-    disabledSecondaryButton: {
-        backgroundColor: "#E2E8F0",
-        borderColor: "#E2E8F0"
-    },
-
-    disabledSecondaryText: {
-        fontSize: 15,
-        fontWeight: "800",
-        color: "#94A3B8"
-    },
-
-    pressedButton: {
-        opacity: 0.85
-    },
-
-    pressedSecondaryButton: {
-        backgroundColor: "#F1F5F9"
-    },
-
-    syncCard: {
-        minHeight: 64,
+    primaryBtn: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
-        backgroundColor: "#FFFFFF",
-        borderRadius: 15,
-        paddingHorizontal: 17,
-        borderWidth: 1,
-        borderColor: "#E2E8F0",
-        marginBottom: 14
+        justifyContent: "center",
+        backgroundColor: "#2563EB",
+        borderRadius: 12,
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 3
     },
-
-    syncLabel: {
-        fontSize: 9,
-        fontWeight: "800",
-        letterSpacing: 1.1,
-        color: "#94A3B8",
-        marginBottom: 3
-    },
-
-    syncValue: {
-        fontSize: 13,
-        fontWeight: "700",
-        color: "#334155"
-    },
-
-    syncDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: "#16A34A"
-    },
-
-    resetButton: {
+    checkoutBtn: {
+        flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        minHeight: 46,
-        marginBottom: 14,
+        backgroundColor: "#EA580C",
         borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#CBD5E1",
-        backgroundColor: "#FFFFFF"
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        shadowColor: "#EA580C",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 3
     },
-
-    resetText: {
-        fontSize: 13,
+    btnDisabled: {
+        opacity: 0.65
+    },
+    btnText: {
+        fontSize: 15,
         fontWeight: "700",
-        color: "#64748B"
+        color: "#FFFFFF"
     },
-
-    securityNote: {
-        padding: 16,
-        borderRadius: 15,
-        backgroundColor: "#EFF6FF",
+    allDoneBox: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F0FDF4",
+        borderRadius: 12,
+        padding: 14,
         borderWidth: 1,
-        borderColor: "#DBEAFE"
+        borderColor: "#BBF7D0"
     },
-
-    securityTitle: {
-        fontSize: 13,
-        fontWeight: "800",
-        color: "#1D4ED8",
-        marginBottom: 5
+    allDoneTitle: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "#166534"
     },
-
-    securityText: {
+    allDoneSubtitle: {
         fontSize: 12,
+        color: "#15803D",
+        marginTop: 1
+    },
+    policyCard: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 14,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: "#E2E8F0"
+    },
+    policyHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 8
+    },
+    policyTitle: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "#0F172A"
+    },
+    policyItem: {
+        fontSize: 12,
+        color: "#64748B",
         lineHeight: 18,
-        color: "#475569"
+        marginBottom: 4
     }
-
 });

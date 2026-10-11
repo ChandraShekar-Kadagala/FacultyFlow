@@ -69,19 +69,93 @@ function Sidebar() {
                     )}
 
                     {user?.role === "admin" && (
-                        <NavLink
-                            to="/admin"
-                            className={getLinkClass}
-                            end
-                        >
-                            <span className="nav-icon">
-                                ▦
-                            </span>
+                        <>
+                            <NavLink
+                                to="/admin"
+                                className={getLinkClass}
+                                end
+                            >
+                                <span className="nav-icon">
+                                    ▦
+                                </span>
 
-                            <span>
-                                Admin Dashboard
-                            </span>
-                        </NavLink>
+                                <span>
+                                    Dashboard
+                                </span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/faculty"
+                                className={getLinkClass}
+                            >
+                                <span className="nav-icon">
+                                    ◉
+                                </span>
+
+                                <span>
+                                    Manage Faculty
+                                </span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/attendance"
+                                className={getLinkClass}
+                            >
+                                <span className="nav-icon">
+                                    ◷
+                                </span>
+
+                                <span>
+                                    Attendance
+                                </span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/audit"
+                                className={getLinkClass}
+                            >
+                                <span className="nav-icon">
+                                    ◎
+                                </span>
+
+                                <span>
+                                    Audit Logs
+                                </span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/policy"
+                                className={getLinkClass}
+                            >
+                                <span className="nav-icon">
+                                    ⚙
+                                </span>
+
+                                <span>
+                                    Policy
+                                </span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/location"
+                                className={getLinkClass}
+                            >
+                                <span className="nav-icon">
+                                    ⌖
+                                </span>
+
+                                <span>
+                                    Locations
+                                </span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/network"
+                                className={getLinkClass}
+                            >
+                                <span className="nav-icon">
+                                    ⍫
+                                </span>
+
+                                <span>
+                                    Network
+                                </span>
+                            </NavLink>
+                        </>
                     )}
 
                 </nav>

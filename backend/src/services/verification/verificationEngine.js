@@ -202,52 +202,20 @@ export async function runVerificationEngine({
     // PERSIST VERIFICATION EVENTS
     // ========================================================
 
-    const persistedEvents = [];
+    const eventDocs = results.map(result => ({
+        verificationEventId: generateVerificationEventId(),
+        verificationSessionId,
+        facultyId: faculty.facultyId,
+        actorId: user.userId,
+        attendanceId,
+        type: result.type,
+        result: result.result,
+        reason: result.reason,
+        metadata: sanitizeMetadata(result.metadata),
+        timestamp: serverTime
+    }));
 
-    for (
-        const result of results
-    ) {
-
-        const verificationEvent =
-            await VerificationEvent.create({
-
-                verificationEventId:
-                    generateVerificationEventId(),
-
-                verificationSessionId,
-
-                facultyId:
-                    faculty.facultyId,
-
-                actorId:
-                    user.userId,
-
-                attendanceId,
-
-                type:
-                    result.type,
-
-                result:
-                    result.result,
-
-                reason:
-                    result.reason,
-
-                metadata:
-                    sanitizeMetadata(
-                        result.metadata
-                    ),
-
-                timestamp:
-                    serverTime
-
-            });
-
-
-        persistedEvents.push(
-            verificationEvent
-        );
-    }
+    const persistedEvents = await VerificationEvent.insertMany(eventDocs);
 
 
     // ========================================================

@@ -164,7 +164,11 @@ function handleExistingSyncEvent(existingEvent, facultyId) {
 
 async function handleReceivedSyncEvent(existingEvent) {
     const attendance = await AttendanceRecord.findOne({
-        syncEventId: existingEvent.eventId
+        $or: [
+            { syncEventId: existingEvent.eventId },
+            { checkInSyncEventId: existingEvent.eventId },
+            { checkOutSyncEventId: existingEvent.eventId }
+        ]
     });
 
     if (attendance) {

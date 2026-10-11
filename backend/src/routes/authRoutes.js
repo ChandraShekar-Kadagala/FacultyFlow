@@ -47,6 +47,25 @@ router.get(
 
 
 router.get(
+    "/verify",
+    authenticateToken,
+    (req, res) => {
+
+        res.status(200).json({
+
+            success: true,
+
+            message:
+                "Token is valid.",
+
+            user:
+                req.user
+        });
+    }
+);
+
+
+router.get(
     "/admin-test",
     authenticateToken,
     requireRole("admin"),

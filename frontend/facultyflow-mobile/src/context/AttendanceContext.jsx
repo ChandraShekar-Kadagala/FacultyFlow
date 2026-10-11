@@ -1,1149 +1,534 @@
 import {
     createContext,
+    useCallback,
     useContext,
     useEffect,
     useMemo,
     useState
 } from "react";
-
-
-import NetInfo
-    from "@react-native-community/netinfo";
-
-
+import { useAuth } from "./AuthContext";
 import {
-    ATTENDANCE_STATUS,
-    SYNC_STATUS,
-    checkIn,
-    checkOut
-} from "../services/attendance/attendanceEngine";
-
-
+    getTodayAttendance,
+    checkInAttendance,
+    checkOutAttendance
+} from "../services/attendance/attendanceApi";
 import {
-    createAttendanceEvent,
-    saveAndSync,
-    syncPendingEvents
+    getDeviceSignal,
+    getLocationSignal
+} from "../services/device/deviceLocationHelper";
+import {
+    isNetworkConnected,
+    subscribeNetworkStatus
+} from "../services/sync/networkMonitor";
+import {
+    syncUserEvents
 } from "../services/sync/syncEngine";
-
-
 import {
-    getPendingEvents
-} from "../services/sync/storageService";
-
-
-import {
-    useAuth
-} from "./AuthContext";
-
-
-const AttendanceContext =
-    createContext(null);
-
-
-// ============================================================
-// DEFAULT ATTENDANCE
-// ============================================================
-
-const defaultAttendance = {
-
-    facultyId:
-        null,
-
-    date:
-        null,
-
-    status:
-        ATTENDANCE_STATUS.NOT_CHECKED_IN,
-
-    checkInTime:
-        null,
-
-    checkOutTime:
-        null,
-
-    syncStatus:
-        SYNC_STATUS.LOCAL,
-
-    lastEvent:
-        null,
-
-    lastVerification:
-        null,
-
-    lastError:
-        null
-
-};
-
-
-// ============================================================
-// LOCAL POLICY
-// ============================================================
-
-const attendancePolicy = {
-
-    requiredSignals: [
-
-        "identity",
-
-        "schedule"
-
-    ]
-
-};
-
-
-// ============================================================
-// PROVIDER
-// ============================================================
-
-export function AttendanceProvider({
-
-    children
-
-}) {
-
-    // ========================================================
-    // AUTHENTICATION
-    // ========================================================
-
-    const {
-
-        user,
-
-        accessToken,
-
-        loading:
-            authLoading
-
-    } = useAuth();
-
-
-    // ========================================================
-    // ATTENDANCE STATE
-    // ========================================================
-
-    const [
-
-        attendance,
-
-        setAttendance
-
-    ] = useState(
-        defaultAttendance
-    );
-
-
-    const [
-
-        processing,
-
-        setProcessing
-
-    ] = useState(false);
-
-
-    const [
-
-        networkConnected,
-
-        setNetworkConnected
-
-    ] = useState(true);
-
-
-    const [
-
-        pendingCount,
-
-        setPendingCount
-
-    ] = useState(0);
-
-
-    const [
-
-        syncProcessing,
-
-        setSyncProcessing
-
-    ] = useState(false);
-
-
-    // ========================================================
-    // REFRESH PENDING COUNT
-    // ========================================================
-
-    async function refreshPendingCount() {
-
-        try {
-
-            const pendingEvents =
-                await getPendingEvents();
-
-
-            setPendingCount(
-
-                pendingEvents.length
-
-            );
-
-        } catch (error) {
-
-            console.error(
-
-                "Failed to refresh pending count:",
-
-                error
-
-            );
-
-        }
-
+    enqueueOfflineEvent,
+    generateSyncEventId,
+    getPendingCount,
+    getFailedCount,
+    retryFailedEvents
+} from "../services/storage/sqliteQueue";
+
+const AttendanceContext = createContext(null);
+
+export function getAttendanceErrorMessage(error, fallbackMessage = "Attendance operation failed.") {
+    const code = error?.code || error?.data?.code;
+    const msg = error?.message || error?.data?.message;
+
+    switch (code) {
+        case "ATTENDANCE_ALREADY_EXISTS":
+            return "You have already checked in today.";
+        case "CHECK_IN_REQUIRED":
+            return "Check-in is required before you can check out.";
+        case "CHECK_OUT_ALREADY_COMPLETED":
+            return "You have already checked out today.";
+        case "FACULTY_INACTIVE":
+            return "Your faculty account is currently inactive. Contact your administrator.";
+        case "FACULTY_NOT_FOUND":
+            return "Faculty profile was not found.";
+        case "FACULTY_PROFILE_UNAVAILABLE":
+            return "Authenticated faculty profile is not available.";
+        case "ATTENDANCE_VERIFICATION_FAILED":
+            return msg || "Attendance verification failed against campus policies.";
+        case "ATTENDANCE_VERIFICATION_INCOMPLETE":
+            return msg || "Attendance verification is incomplete.";
+        case "ATTENDANCE_OUTSIDE_ALLOWED_TIME":
+            return msg || "Attendance cannot be recorded outside the permitted schedule window.";
+        case "NETWORK_ERROR":
+            return "Unable to connect to the FacultyFlow server. Please check your internet connection.";
+        case "TIMEOUT_ERROR":
+            return "The request timed out. Please try again.";
+        case "AUTH_ERROR":
+            return "Your authentication session has expired. Please sign in again.";
+        default:
+            return msg || fallbackMessage;
     }
+}
 
+export function AttendanceProvider({ children }) {
+    const { user, accessToken } = useAuth();
+    const currentUserId = user?.id || user?.userId || user?.facultyId || null;
 
-    // ========================================================
-    // INITIALIZE + MONITOR NETWORK
-    // ========================================================
+    const [attendance, setAttendance] = useState(null);
+    const [verification, setVerification] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [successMessage, setSuccessMessage] = useState(null);
 
-    useEffect(() => {
+    // Synchronization States (Phase 3 & Phase 4 Hardening)
+    const [isOnline, setIsOnline] = useState(true);
+    const [isSyncingState, setIsSyncingState] = useState(false);
+    const [pendingSyncCount, setPendingSyncCount] = useState(0);
+    const [failedSyncCount, setFailedSyncCount] = useState(0);
+    const [lastSyncTime, setLastSyncTime] = useState(null);
 
-        let unsubscribe;
+    // Refresh pending & failed offline queue counts for current faculty member
+    const refreshPendingCount = useCallback(async () => {
+        if (!currentUserId) {
+            setPendingSyncCount(0);
+            setFailedSyncCount(0);
+            return;
+        }
+        try {
+            const [pending, failed] = await Promise.all([
+                getPendingCount(currentUserId),
+                getFailedCount ? getFailedCount(currentUserId) : 0
+            ]);
+            setPendingSyncCount(pending);
+            setFailedSyncCount(failed);
+        } catch (err) {
+            console.error("Failed to fetch pending sync count:", err);
+        }
+    }, [currentUserId]);
 
-
-        async function initializeSync() {
-
-            try {
-
-                const network =
-                    await NetInfo.fetch();
-
-
-                const connected =
-                    Boolean(
-                        network.isConnected
-                    );
-
-
-                setNetworkConnected(
-                    connected
-                );
-
-
-                await refreshPendingCount();
-
-
-                // ------------------------------------------------
-                // Only sync when authenticated
-                // ------------------------------------------------
-
-                if (
-                    connected &&
-                    accessToken
-                ) {
-
-                    setSyncProcessing(
-                        true
-                    );
-
-
-                    const result =
-                        await syncPendingEvents(
-
-                            accessToken
-
-                        );
-
-
-                    setSyncProcessing(
-                        false
-                    );
-
-
-                    if (
-                        result.status ===
-                        "SYNCED"
-                    ) {
-
-                        setAttendance(
-
-                            current => ({
-
-                                ...current,
-
-                                syncStatus:
-                                    SYNC_STATUS.SYNCED,
-
-                                lastError:
-                                    null
-
-                            })
-
-                        );
-
-                    }
-
-
-                    await refreshPendingCount();
-
-                }
-
-            } catch (error) {
-
-                setSyncProcessing(
-                    false
-                );
-
-
-                console.error(
-
-                    "Sync initialization failed:",
-
-                    error
-
-                );
-
-            }
-
+    // Refresh today's attendance record from authoritative server
+    const refreshAttendance = useCallback(async (silent = false) => {
+        if (!accessToken) {
+            setAttendance(null);
+            setVerification(null);
+            return;
         }
 
-
-        // --------------------------------------------------------
-        // Wait until authentication restoration finishes
-        // --------------------------------------------------------
-
-        if (
-            !authLoading
-        ) {
-
-            initializeSync();
-
-        }
-
-
-        // ========================================================
-        // NETWORK LISTENER
-        // ========================================================
-
-        unsubscribe =
-            NetInfo.addEventListener(
-
-                async state => {
-
-                    const connected =
-                        Boolean(
-                            state.isConnected
-                        );
-
-
-                    setNetworkConnected(
-                        connected
-                    );
-
-
-                    if (
-                        connected &&
-                        accessToken
-                    ) {
-
-                        setSyncProcessing(
-                            true
-                        );
-
-
-                        try {
-
-                            const result =
-                                await syncPendingEvents(
-
-                                    accessToken
-
-                                );
-
-
-                            if (
-                                result.status ===
-                                "SYNCED"
-                            ) {
-
-                                setAttendance(
-
-                                    current => ({
-
-                                        ...current,
-
-                                        syncStatus:
-                                            SYNC_STATUS.SYNCED,
-
-                                        lastError:
-                                            null
-
-                                    })
-
-                                );
-
-                            }
-
-
-                            await refreshPendingCount();
-
-                        } catch (error) {
-
-                            console.error(
-
-                                "Automatic sync failed:",
-
-                                error
-
-                            );
-
-                        } finally {
-
-                            setSyncProcessing(
-                                false
-                            );
-
-                        }
-
-                    } else if (
-                        !connected
-                    ) {
-
-                        setAttendance(
-
-                            current => ({
-
-                                ...current,
-
-                                syncStatus:
-                                    SYNC_STATUS.PENDING_SYNC
-
-                            })
-
-                        );
-
-                    }
-
-                }
-
-            );
-
-
-        return () => {
-
-            if (
-                unsubscribe
-            ) {
-
-                unsubscribe();
-
-            }
-
-        };
-
-    }, [
-
-        accessToken,
-
-        authLoading
-
-    ]);
-
-
-    // ============================================================
-    // CHECK-IN
-    // ============================================================
-
-    async function performCheckIn(
-        currentUser = user
-    ) {
-
-        if (
-            processing
-        ) {
-
-            return {
-
-                success:
-                    false,
-
-                reason:
-                    "An attendance operation is already in progress."
-
-            };
-
-        }
-
-
-        // --------------------------------------------------------
-        // Authentication check
-        // --------------------------------------------------------
-
-        if (
-            !accessToken
-        ) {
-
-            return {
-
-                success:
-                    false,
-
-                reason:
-                    "Authentication session is missing."
-
-            };
-
-        }
-
-
-        setProcessing(
-            true
-        );
-
+        if (!silent) setLoading(true);
+        setError(null);
 
         try {
-
-            // ----------------------------------------------------
-            // Local attendance engine
-            //
-            // This preserves the existing offline flow.
-            // ----------------------------------------------------
-
-            const result =
-                await checkIn({
-
-                    user:
-                        currentUser,
-
-                    attendance,
-
-                    policy:
-                        attendancePolicy
-
-                });
-
-
-            if (
-                !result.success
-            ) {
-
-                setAttendance(
-
-                    current => ({
-
-                        ...current,
-
-                        lastVerification:
-                            result.verification,
-
-                        lastError:
-                            result.reason
-
-                    })
-
-                );
-
-
-                return result;
-
+            const response = await getTodayAttendance(accessToken);
+            if (response?.success) {
+                setAttendance(response.attendance || null);
+                setVerification(response.verification || null);
+            } else {
+                setAttendance(null);
+                setVerification(null);
             }
-
-
-            // ----------------------------------------------------
-            // Create local event
-            // ----------------------------------------------------
-
-            const event =
-                createAttendanceEvent({
-
-                    eventType:
-                        "CHECK_IN",
-
-                    facultyId:
-
-                        result.attendance
-                            ?.facultyId ||
-
-                        currentUser
-                            ?.facultyId ||
-
-                        null,
-
-                    attendance:
-                        result.attendance,
-
-                    verification:
-                        result.verification
-
-                });
-
-
-            // ----------------------------------------------------
-            // Save locally + authenticated sync
-            // ----------------------------------------------------
-
-            const syncResult =
-                await saveAndSync(
-
-                    event,
-
-                    accessToken
-
-                );
-
-
-            const finalSyncStatus =
-                syncResult.status ||
-
-                SYNC_STATUS.PENDING_SYNC;
-
-
-            // ----------------------------------------------------
-            // Update UI
-            // ----------------------------------------------------
-
-            setAttendance({
-
-                ...result.attendance,
-
-                syncStatus:
-                    finalSyncStatus,
-
-                lastEvent:
-                    event,
-
-                lastVerification:
-                    result.verification,
-
-                lastError:
-
-                    syncResult.success
-
-                        ? null
-
-                        : syncResult.error ||
-
-                          null
-
-            });
-
-
-            await refreshPendingCount();
-
-
-            return {
-
-                ...result,
-
-                event,
-
-                syncStatus:
-                    finalSyncStatus,
-
-                syncResult
-
-            };
-
-        } catch (error) {
-
-            setAttendance(
-
-                current => ({
-
-                    ...current,
-
-                    syncStatus:
-                        SYNC_STATUS.PENDING_SYNC,
-
-                    lastError:
-                        error?.message
-
-                })
-
-            );
-
-
-            return {
-
-                success:
-                    false,
-
-                reason:
-                    error?.message ||
-
-                    "Check-in failed."
-
-            };
-
+        } catch (err) {
+            // If offline, do not overwrite optimistic offline state with null
+            const online = await isNetworkConnected();
+            if (!online) {
+                // Keep local attendance state intact
+            } else {
+                console.error("Failed to fetch today attendance:", err);
+                setError(getAttendanceErrorMessage(err, "Unable to load attendance status."));
+            }
         } finally {
+            if (!silent) setLoading(false);
+            await refreshPendingCount();
+        }
+    }, [accessToken, refreshPendingCount]);
 
-            setProcessing(
-                false
-            );
-
+    // Manual or automatic synchronization trigger
+    const triggerSync = useCallback(async () => {
+        if (!accessToken || !currentUserId || isSyncingState) {
+            return { success: false, skipped: true };
         }
 
-    }
-
-
-    // ============================================================
-    // CHECK-OUT
-    // ============================================================
-
-    async function performCheckOut(
-        currentUser = user
-    ) {
-
-        if (
-            processing
-        ) {
-
-            return {
-
-                success:
-                    false,
-
-                reason:
-                    "An attendance operation is already in progress."
-
-            };
-
-        }
-
-
-        if (
-            !accessToken
-        ) {
-
-            return {
-
-                success:
-                    false,
-
-                reason:
-                    "Authentication session is missing."
-
-            };
-
-        }
-
-
-        setProcessing(
-            true
-        );
-
-
+        setIsSyncingState(true);
         try {
-
-            // ----------------------------------------------------
-            // Existing local attendance engine
-            // ----------------------------------------------------
-
-            const result =
-                await checkOut({
-
-                    user:
-                        currentUser,
-
-                    attendance,
-
-                    policy:
-                        attendancePolicy
-
-                });
-
-
-            if (
-                !result.success
-            ) {
-
-                setAttendance(
-
-                    current => ({
-
-                        ...current,
-
-                        lastVerification:
-                            result.verification,
-
-                        lastError:
-                            result.reason
-
-                    })
-
-                );
-
-
-                return result;
-
-            }
-
-
-            // ----------------------------------------------------
-            // Create local event
-            // ----------------------------------------------------
-
-            const event =
-                createAttendanceEvent({
-
-                    eventType:
-                        "CHECK_OUT",
-
-                    facultyId:
-
-                        result.attendance
-                            ?.facultyId ||
-
-                        currentUser
-                            ?.facultyId ||
-
-                        null,
-
-                    attendance:
-                        result.attendance,
-
-                    verification:
-                        result.verification
-
-                });
-
-
-            // ----------------------------------------------------
-            // Save locally + authenticated sync
-            // ----------------------------------------------------
-
-            const syncResult =
-                await saveAndSync(
-
-                    event,
-
-                    accessToken
-
-                );
-
-
-            const finalSyncStatus =
-                syncResult.status ||
-
-                SYNC_STATUS.PENDING_SYNC;
-
-
-            // ----------------------------------------------------
-            // Update UI
-            // ----------------------------------------------------
-
-            setAttendance({
-
-                ...result.attendance,
-
-                syncStatus:
-                    finalSyncStatus,
-
-                lastEvent:
-                    event,
-
-                lastVerification:
-                    result.verification,
-
-                lastError:
-
-                    syncResult.success
-
-                        ? null
-
-                        : syncResult.error ||
-
-                          null
-
-            });
-
-
+            const result = await syncUserEvents(accessToken, currentUserId);
             await refreshPendingCount();
 
-
-            return {
-
-                ...result,
-
-                event,
-
-                syncStatus:
-                    finalSyncStatus,
-
-                syncResult
-
-            };
-
-        } catch (error) {
-
-            setAttendance(
-
-                current => ({
-
-                    ...current,
-
-                    syncStatus:
-                        SYNC_STATUS.PENDING_SYNC,
-
-                    lastError:
-                        error?.message
-
-                })
-
-            );
-
-
-            return {
-
-                success:
-                    false,
-
-                reason:
-                    error?.message ||
-
-                    "Check-out failed."
-
-            };
-
-        } finally {
-
-            setProcessing(
-                false
-            );
-
-        }
-
-    }
-
-
-    // ============================================================
-    // MANUAL RETRY
-    // ============================================================
-
-    async function retryPendingSync() {
-
-        if (
-            syncProcessing
-        ) {
-
-            return {
-
-                success:
-                    false,
-
-                status:
-                    "SYNC_IN_PROGRESS"
-
-            };
-
-        }
-
-
-        if (
-            !networkConnected
-        ) {
-
-            return {
-
-                success:
-                    false,
-
-                status:
-                    "OFFLINE"
-
-            };
-
-        }
-
-
-        if (
-            !accessToken
-        ) {
-
-            return {
-
-                success:
-                    false,
-
-                status:
-                    "AUTHENTICATION_REQUIRED"
-
-            };
-
-        }
-
-
-        setSyncProcessing(
-            true
-        );
-
-
-        try {
-
-            const result =
-                await syncPendingEvents(
-
-                    accessToken
-
-                );
-
-
-            await refreshPendingCount();
-
-
-            if (
-                result.status ===
-                "SYNCED"
-            ) {
-
-                setAttendance(
-
-                    current => ({
-
-                        ...current,
-
-                        syncStatus:
-                            SYNC_STATUS.SYNCED,
-
-                        lastError:
-                            null
-
-                    })
-
-                );
-
-            } else if (
-                result.status ===
-                "PARTIAL_SYNC"
-            ) {
-
-                setAttendance(
-
-                    current => ({
-
-                        ...current,
-
-                        syncStatus:
-                            SYNC_STATUS.PENDING_SYNC
-
-                    })
-
-                );
-
+            if (result.syncedCount > 0) {
+                setLastSyncTime(new Date().toISOString());
+                // Refresh from server to get authoritative timestamps
+                await refreshAttendance(true);
             }
-
 
             return result;
-
+        } catch (err) {
+            console.error("Sync run error:", err);
+            return { success: false, error: err.message };
         } finally {
+            setIsSyncingState(false);
+        }
+    }, [accessToken, currentUserId, isSyncingState, refreshPendingCount, refreshAttendance]);
 
-            setSyncProcessing(
-                false
-            );
+    // Initial load when user/token changes
+    useEffect(() => {
+        if (accessToken) {
+            refreshAttendance(false);
+            refreshPendingCount();
+        } else {
+            setAttendance(null);
+            setVerification(null);
+            setError(null);
+            setSuccessMessage(null);
+            setPendingSyncCount(0);
+        }
+    }, [accessToken, currentUserId, refreshAttendance, refreshPendingCount]);
 
+    // Monitor network connectivity and auto-trigger sync on reconnection
+    useEffect(() => {
+        let isMounted = true;
+
+        isNetworkConnected().then((online) => {
+            if (isMounted) setIsOnline(online);
+        });
+
+        const unsubscribe = subscribeNetworkStatus(async (connected) => {
+            if (!isMounted) return;
+            setIsOnline(connected);
+
+            // Reconnected to internet: trigger background synchronization
+            if (connected && accessToken && currentUserId) {
+                try {
+                    await triggerSync();
+                } catch (err) {
+                    console.error("Auto-sync error on reconnect:", err);
+                }
+            }
+        });
+
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
+    }, [accessToken, currentUserId, triggerSync]);
+
+    // Perform Check-In (Online with Seamless Offline Fallback)
+    const performCheckIn = useCallback(async () => {
+        if (!accessToken || !currentUserId) {
+            setError("You must be logged in to check in.");
+            return { success: false, error: "Not authenticated" };
         }
 
-    }
+        if (actionLoading) {
+            return { success: false, error: "Request already in progress" };
+        }
 
+        setActionLoading(true);
+        setError(null);
+        setSuccessMessage(null);
 
-    // ============================================================
-    // RESET LOCAL UI
-    // ============================================================
+        try {
+            // Collect device & location observations
+            const [device, locationResult] = await Promise.all([
+                getDeviceSignal(),
+                getLocationSignal()
+            ]);
 
-    function resetAttendance() {
+            const payloadSignals = {
+                device,
+                location: locationResult?.signal || null,
+                network: null
+            };
 
-        setAttendance(
-            defaultAttendance
-        );
+            const connected = await isNetworkConnected();
 
-    }
+            // PATH 1: Online authoritative check-in
+            if (connected) {
+                try {
+                    const response = await checkInAttendance({
+                        accessToken,
+                        device: payloadSignals.device,
+                        location: payloadSignals.location,
+                        network: payloadSignals.network
+                    });
 
+                    if (response?.success) {
+                        setAttendance(response.attendance);
+                        setVerification(response.verification || null);
+                        const msg = response.message || "Attendance checked in successfully.";
+                        setSuccessMessage(msg);
+                        return {
+                            success: true,
+                            attendance: response.attendance,
+                            verification: response.verification
+                        };
+                    }
+                    throw new Error(response?.message || "Check-in failed.");
+                } catch (apiErr) {
+                    const isNetworkFailure = apiErr?.isNetworkError || apiErr?.code === "NETWORK_ERROR" || apiErr?.status === 0;
+                    if (!isNetworkFailure) {
+                        // Business logic error from server (e.g. outside schedule, duplicate)
+                        throw apiErr;
+                    }
+                    // Network dropped mid-call — fall through to offline queue
+                    console.warn("Network error during online check-in, queuing offline event.");
+                }
+            }
 
-    // ============================================================
-    // CONTEXT VALUE
-    // ============================================================
+            // PATH 2: Offline durable SQLite queuing
+            const syncEventId = generateSyncEventId(currentUserId, "CHECK_IN");
+            const clientTimestamp = new Date().toISOString();
 
-    const value =
-        useMemo(
+            await enqueueOfflineEvent({
+                eventId: syncEventId,
+                userId: currentUserId,
+                eventType: "CHECK_IN",
+                payload: payloadSignals,
+                clientTimestamp
+            });
 
-            () => ({
+            // Optimistic local attendance state
+            const optimisticAttendance = {
+                date: clientTimestamp,
+                checkInTime: clientTimestamp,
+                checkOutTime: null,
+                status: "Present",
+                verificationStatus: "Pending Sync",
+                syncStatus: "PENDING_SYNC",
+                syncEventId
+            };
 
-                attendance,
+            setAttendance(optimisticAttendance);
+            await refreshPendingCount();
 
-                processing,
+            const offlineMsg = "Offline check-in saved to device. It will automatically synchronize when connection returns.";
+            setSuccessMessage(offlineMsg);
 
-                networkConnected,
+            return {
+                success: true,
+                offline: true,
+                attendance: optimisticAttendance,
+                syncEventId
+            };
+        } catch (err) {
+            console.error("Check-in error:", err);
 
-                pendingCount,
+            if (err?.verification) {
+                setVerification(err.verification);
+            } else if (err?.data?.verification) {
+                setVerification(err.data.verification);
+            }
 
-                syncProcessing,
+            const friendlyError = getAttendanceErrorMessage(err, "Check-in failed.");
+            setError(friendlyError);
+            return { success: false, error: friendlyError };
+        } finally {
+            setActionLoading(false);
+        }
+    }, [accessToken, currentUserId, actionLoading, refreshPendingCount]);
 
-                performCheckIn,
+    // Perform Check-Out (Online with Seamless Offline Fallback)
+    const performCheckOut = useCallback(async () => {
+        if (!accessToken || !currentUserId) {
+            setError("You must be logged in to check out.");
+            return { success: false, error: "Not authenticated" };
+        }
 
-                performCheckOut,
+        if (actionLoading) {
+            return { success: false, error: "Request already in progress" };
+        }
 
-                retryPendingSync,
+        setActionLoading(true);
+        setError(null);
+        setSuccessMessage(null);
 
-                refreshPendingCount,
+        try {
+            const [device, locationResult] = await Promise.all([
+                getDeviceSignal(),
+                getLocationSignal()
+            ]);
 
-                resetAttendance
+            const payloadSignals = {
+                device,
+                location: locationResult?.signal || null,
+                network: null
+            };
 
-            }),
+            const connected = await isNetworkConnected();
 
-            [
+            // PATH 1: Online authoritative check-out
+            if (connected) {
+                try {
+                    const response = await checkOutAttendance({
+                        accessToken,
+                        device: payloadSignals.device,
+                        location: payloadSignals.location,
+                        network: payloadSignals.network
+                    });
 
-                attendance,
+                    if (response?.success) {
+                        setAttendance(response.attendance);
+                        setVerification(response.verification || null);
+                        const msg = response.message || "Attendance checked out successfully.";
+                        setSuccessMessage(msg);
+                        return {
+                            success: true,
+                            attendance: response.attendance,
+                            verification: response.verification
+                        };
+                    }
+                    throw new Error(response?.message || "Check-out failed.");
+                } catch (apiErr) {
+                    const isNetworkFailure = apiErr?.isNetworkError || apiErr?.code === "NETWORK_ERROR" || apiErr?.status === 0;
+                    if (!isNetworkFailure) {
+                        throw apiErr;
+                    }
+                    console.warn("Network error during online check-out, queuing offline event.");
+                }
+            }
 
-                processing,
+            // PATH 2: Offline durable SQLite queuing
+            const syncEventId = generateSyncEventId(currentUserId, "CHECK_OUT");
+            const clientTimestamp = new Date().toISOString();
 
-                networkConnected,
+            await enqueueOfflineEvent({
+                eventId: syncEventId,
+                userId: currentUserId,
+                eventType: "CHECK_OUT",
+                payload: payloadSignals,
+                clientTimestamp
+            });
 
-                pendingCount,
+            // Optimistic update of existing record
+            setAttendance((prev) => ({
+                ...(prev || {}),
+                date: prev?.date || clientTimestamp,
+                checkOutTime: clientTimestamp,
+                syncStatus: "PENDING_SYNC",
+                checkOutSyncEventId: syncEventId
+            }));
 
-                syncProcessing
+            await refreshPendingCount();
 
-            ]
+            const offlineMsg = "Offline check-out saved to device. It will automatically synchronize when connection returns.";
+            setSuccessMessage(offlineMsg);
 
-        );
+            return {
+                success: true,
+                offline: true,
+                syncEventId
+            };
+        } catch (err) {
+            console.error("Check-out error:", err);
 
+            if (err?.verification) {
+                setVerification(err.verification);
+            } else if (err?.data?.verification) {
+                setVerification(err.data.verification);
+            }
+
+            const friendlyError = getAttendanceErrorMessage(err, "Check-out failed.");
+            setError(friendlyError);
+            return { success: false, error: friendlyError };
+        } finally {
+            setActionLoading(false);
+        }
+    }, [accessToken, currentUserId, actionLoading, refreshPendingCount]);
+
+    const clearMessages = useCallback(() => {
+        setError(null);
+        setSuccessMessage(null);
+    }, []);
+
+    // State machine helpers
+    const isCheckedIn = Boolean(attendance?.checkInTime);
+    const isCheckedOut = Boolean(attendance?.checkOutTime);
+    const canCheckIn = !isCheckedIn && !actionLoading;
+    const canCheckOut = isCheckedIn && !isCheckedOut && !actionLoading;
+    const attendanceStatus = attendance?.status || (isCheckedIn ? "Present" : "Not Checked In");
+    const verificationStatus = attendance?.verificationStatus || verification?.result || (isCheckedIn && attendance?.syncStatus === "PENDING_SYNC" ? "Pending Sync" : "Pending");
+
+    const retryFailedSync = useCallback(async () => {
+        if (!currentUserId) return;
+        await retryFailedEvents(currentUserId);
+        await refreshPendingCount();
+        await triggerSync();
+    }, [currentUserId, refreshPendingCount, triggerSync]);
+
+    // Unified sync status for UI
+    const syncStatus = !isOnline
+        ? "OFFLINE"
+        : isSyncingState
+            ? "SYNCING"
+            : failedSyncCount > 0
+                ? "FAILED"
+                : pendingSyncCount > 0
+                    ? "PENDING_SYNC"
+                    : "SYNCED";
+
+    const value = useMemo(() => ({
+        attendance,
+        verification,
+        loading,
+        actionLoading,
+        error,
+        successMessage,
+        isCheckedIn,
+        isCheckedOut,
+        canCheckIn,
+        canCheckOut,
+        attendanceStatus,
+        verificationStatus,
+        // Phase 3 & 4 Synchronization
+        isOnline,
+        isSyncing: isSyncingState,
+        pendingCount: pendingSyncCount,
+        pendingSyncCount,
+        failedCount: failedSyncCount,
+        failedSyncCount,
+        lastSyncTime,
+        syncStatus,
+        triggerSync,
+        retryFailedSync,
+        refreshAttendance,
+        performCheckIn,
+        performCheckOut,
+        clearMessages
+    }), [
+        attendance,
+        verification,
+        loading,
+        actionLoading,
+        error,
+        successMessage,
+        isCheckedIn,
+        isCheckedOut,
+        canCheckIn,
+        canCheckOut,
+        attendanceStatus,
+        verificationStatus,
+        isOnline,
+        isSyncingState,
+        pendingSyncCount,
+        failedSyncCount,
+        lastSyncTime,
+        syncStatus,
+        triggerSync,
+        retryFailedSync,
+        refreshAttendance,
+        performCheckIn,
+        performCheckOut,
+        clearMessages
+    ]);
 
     return (
-
-        <AttendanceContext.Provider
-            value={value}
-        >
-
+        <AttendanceContext.Provider value={value}>
             {children}
-
         </AttendanceContext.Provider>
-
     );
-
 }
-
-
-// ============================================================
-// useAttendance
-// ============================================================
 
 export function useAttendance() {
-
-    const context =
-        useContext(
-            AttendanceContext
-        );
-
-
+    const context = useContext(AttendanceContext);
     if (!context) {
-
-        throw new Error(
-            "useAttendance must be used inside AttendanceProvider."
-        );
-
+        throw new Error("useAttendance must be used within an AttendanceProvider");
     }
-
-
     return context;
-
 }
+
+export default AttendanceContext;

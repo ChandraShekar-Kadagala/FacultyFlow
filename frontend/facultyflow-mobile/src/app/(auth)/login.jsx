@@ -11,7 +11,8 @@ import {
 } from "react-native";
 
 import {
-    router
+    router,
+    Redirect
 } from "expo-router";
 
 import {
@@ -26,7 +27,10 @@ import {
 function LoginScreen() {
 
     const {
-        login
+        login,
+        isAuthenticated,
+        sessionExpired,
+        resetSessionExpired
     } = useAuth();
 
 
@@ -126,6 +130,9 @@ function LoginScreen() {
 
     }
 
+    if (isAuthenticated) {
+        return <Redirect href="/(app)/home" />;
+    }
 
     return (
 
@@ -166,6 +173,14 @@ function LoginScreen() {
                 </Text>
 
 
+                {sessionExpired ? (
+                    <View style={styles.sessionExpiredBox}>
+                        <Text style={styles.sessionExpiredText}>
+                            Your session has expired. Please sign in again to continue.
+                        </Text>
+                    </View>
+                ) : null}
+
                 {error ? (
 
                     <View style={styles.errorBox}>
@@ -191,7 +206,11 @@ function LoginScreen() {
                         colors.textMuted
                     }
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(val) => {
+                        setEmail(val);
+                        if (error) setError("");
+                        resetSessionExpired();
+                    }}
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="email-address"
@@ -211,7 +230,11 @@ function LoginScreen() {
                         colors.textMuted
                     }
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(val) => {
+                        setPassword(val);
+                        if (error) setError("");
+                        resetSessionExpired();
+                    }}
                     secureTextEntry
                     editable={!loading}
                 />
@@ -370,6 +393,21 @@ const styles = StyleSheet.create({
 
     },
 
+
+    sessionExpiredBox: {
+        marginBottom: 16,
+        padding: 12,
+        borderRadius: 10,
+        backgroundColor: "#FEF3C7",
+        borderWidth: 1,
+        borderColor: "#FCD34D"
+    },
+
+    sessionExpiredText: {
+        color: "#B45309",
+        fontSize: 12,
+        fontWeight: "600"
+    },
 
     errorBox: {
 

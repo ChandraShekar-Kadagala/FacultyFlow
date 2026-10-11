@@ -317,7 +317,9 @@ export async function createCheckIn({
                 "SYNCED",
             source:
                 "WEB",
-            syncEventId
+            syncEventId,
+            checkInSyncEventId:
+                syncEventId
         });
 
 
@@ -493,6 +495,7 @@ export async function createCheckOut({
 
     if (syncEventId) {
         attendance.syncEventId = syncEventId;
+        attendance.checkOutSyncEventId = syncEventId;
     }
 
     await attendance.save();
