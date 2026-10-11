@@ -226,8 +226,23 @@ export async function deactivateCampusLocation(
     );
 
 }
-export async function toggleCampusLocation(locationId, accessToken) { return { success: true }; }
+export async function toggleCampusLocation(locationId, currentActive, accessToken) {
+    if (currentActive) {
+        return await deactivateCampusLocation(locationId, accessToken);
+    }
+    return await activateCampusLocation(locationId, accessToken);
+}
 
-export async function deleteCampusLocation(locationId, accessToken) { return { success: true }; }
+export async function deleteCampusLocation(locationId, accessToken) {
+    return await apiRequest(
+        `/admin/locations/${encodeURIComponent(locationId)}`,
+        {
+            method: "DELETE",
+            token: accessToken
+        }
+    );
+}
 
-export async function resetCampusLocations(accessToken) { return { success: true }; }
+export async function resetCampusLocations(accessToken) {
+    return await getCampusLocations(accessToken);
+}

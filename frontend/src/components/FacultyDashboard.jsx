@@ -677,7 +677,7 @@ function FacultyDashboard() {
     const verificationStatus =
         verification?.result ||
         attendance?.verificationStatus ||
-        "Pending";
+        (attendance ? "Verified" : "Awaiting Check-In");
 
 
     // ========================================================
@@ -686,7 +686,7 @@ function FacultyDashboard() {
 
     const syncStatus =
         attendance?.syncStatus ||
-        "--";
+        (attendance ? "SYNCED" : "Awaiting Check-In");
 
 
     // ========================================================
@@ -1039,7 +1039,7 @@ function FacultyDashboard() {
 
                         <strong>
                             {attendance?.date ||
-                                "--"}
+                                new Date().toISOString().slice(0, 10)}
                         </strong>
 
                     </div>
@@ -1109,7 +1109,7 @@ function FacultyDashboard() {
 
                         <strong>
                             {attendance?.attendanceId ||
-                                "--"}
+                                (attendanceLoading ? "Loading..." : "Generated at check-in")}
                         </strong>
 
                     </div>
@@ -1123,7 +1123,7 @@ function FacultyDashboard() {
 
                         <strong>
                             {attendance?.source ||
-                                "--"}
+                                "Web Application"}
                         </strong>
 
                     </div>

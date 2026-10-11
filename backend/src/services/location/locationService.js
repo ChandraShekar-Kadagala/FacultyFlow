@@ -487,3 +487,23 @@ export async function verifyCampusLocation({
     };
 
 }
+
+
+// ============================================================
+// DELETE
+// ============================================================
+
+export async function deleteCampusLocation(locationId) {
+    const location = await CampusLocation.findOneAndDelete({
+        locationId
+    });
+
+    if (!location) {
+        const error = new Error("Campus location was not found.");
+        error.statusCode = 404;
+        error.code = "CAMPUS_LOCATION_NOT_FOUND";
+        throw error;
+    }
+
+    return location;
+}

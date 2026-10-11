@@ -50,10 +50,17 @@ export async function getTodayAttendance(
         );
     }
 
+    const faculty = await Faculty.findOne({
+        $or: [
+            { facultyId },
+            { userId: facultyId }
+        ]
+    });
+    const canonicalId = faculty ? faculty.facultyId : facultyId;
 
     return AttendanceRecord.findOne({
 
-        facultyId,
+        facultyId: { $in: [canonicalId, facultyId] },
 
         date:
             getServerDate()
@@ -84,10 +91,17 @@ export async function getAttendanceHistory(
         );
     }
 
+    const faculty = await Faculty.findOne({
+        $or: [
+            { facultyId },
+            { userId: facultyId }
+        ]
+    });
+    const canonicalId = faculty ? faculty.facultyId : facultyId;
 
     return AttendanceRecord
         .find({
-            facultyId
+            facultyId: { $in: [canonicalId, facultyId] }
         })
         .sort({
             date: -1
@@ -173,9 +187,10 @@ export async function createCheckIn({
 
     const faculty =
         await Faculty.findOne({
-
-            facultyId
-
+            $or: [
+                { facultyId },
+                { userId: facultyId }
+            ]
         });
 
 
@@ -192,6 +207,8 @@ export async function createCheckIn({
 
         );
     }
+
+    const canonicalFacultyId = faculty.facultyId;
 
 
     if (
@@ -229,7 +246,7 @@ export async function createCheckIn({
     const existing =
         await AttendanceRecord.findOne({
 
-            facultyId,
+            facultyId: { $in: [canonicalFacultyId, facultyId] },
 
             date
 
@@ -256,7 +273,7 @@ export async function createCheckIn({
     // ========================================================
 
     const attendanceId =
-        `ATT-${facultyId}-${date}`;
+        `ATT-${canonicalFacultyId}-${date}`;
 
 
     // ========================================================
@@ -293,7 +310,7 @@ export async function createCheckIn({
 
             attendanceId,
 
-            facultyId,
+            facultyId: canonicalFacultyId,
 
             date,
 
@@ -408,11 +425,18 @@ export async function createCheckOut({
             serverTime
         );
 
+    const faculty = await Faculty.findOne({
+        $or: [
+            { facultyId },
+            { userId: facultyId }
+        ]
+    });
+    const canonicalId = faculty ? faculty.facultyId : facultyId;
 
     const attendance =
         await AttendanceRecord.findOne({
 
-            facultyId,
+            facultyId: { $in: [canonicalId, facultyId] },
 
             date
 

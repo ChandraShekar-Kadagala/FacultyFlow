@@ -129,7 +129,7 @@ function App() {
                                 path="/faculty/:facultyId"
                                 element={
                                     <RoleBasedRoute
-                                        allowedRole="faculty"
+                                        allowedRoles={["admin", "faculty"]}
                                     >
                                         <FacultyDetailsPage />
                                     </RoleBasedRoute>
@@ -177,6 +177,17 @@ function App() {
                                         allowedRole="admin"
                                     >
                                         <FacultyManagementPage />
+                                    </RoleBasedRoute>
+                                }
+                            />
+
+                            <Route
+                                path="/admin/faculty/:facultyId"
+                                element={
+                                    <RoleBasedRoute
+                                        allowedRoles={["admin", "faculty"]}
+                                    >
+                                        <FacultyDetailsPage />
                                     </RoleBasedRoute>
                                 }
                             />

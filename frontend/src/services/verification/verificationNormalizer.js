@@ -68,10 +68,10 @@ export function normalizeVerificationResult(
         return {
 
             overallResult:
-                VERIFICATION_RESULTS.PENDING,
+                "AWAITING_CHECK_IN",
 
             reason:
-                "Verification result is not available.",
+                "Attendance has not been recorded yet today. Use Check In below to evaluate verification signals.",
 
             sessionId:
                 null,
@@ -90,10 +90,18 @@ export function normalizeVerificationResult(
                             DESCRIPTIONS[type],
 
                         result:
-                            VERIFICATION_RESULTS.UNAVAILABLE,
+                            "AWAITING_CHECK_IN",
 
                         reason:
-                            "No verification result is available."
+                            type === "LOCATION"
+                                ? "Device GPS coordinates will be captured and verified against the campus geofence."
+                                : type === "IDENTITY"
+                                    ? "Authenticated faculty identity session will be verified."
+                                    : type === "SCHEDULE"
+                                        ? "Current server time will be verified against the attendance policy window."
+                                        : type === "NETWORK"
+                                            ? "Network signals are evaluated on mobile apps; web browsers verify location & session."
+                                            : "Device signal will be evaluated upon check-in submission."
 
                     })
 

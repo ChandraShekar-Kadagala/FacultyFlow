@@ -5,6 +5,9 @@ import {
 import User
     from "../models/User.js";
 
+import Faculty
+    from "../models/Faculty.js";
+
 
 export async function authenticateToken(
     req,
@@ -97,13 +100,21 @@ export async function authenticateToken(
         }
 
 
+        let facultyId = user.facultyId || null;
+        if (!facultyId && user.role === "faculty") {
+            const facultyRecord = await Faculty.findOne({ userId: user.userId }).select("facultyId");
+            if (facultyRecord) {
+                facultyId = facultyRecord.facultyId;
+            }
+        }
+
         req.user = {
 
             userId: user.userId,
 
             role: user.role,
 
-            facultyId: user.facultyId || null
+            facultyId: facultyId
 
         };
 

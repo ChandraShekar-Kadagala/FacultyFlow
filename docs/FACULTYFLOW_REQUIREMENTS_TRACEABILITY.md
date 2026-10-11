@@ -56,11 +56,17 @@ This matrix establishes bidirectional traceability between system requirements, 
 
 ## 3. Coverage Analysis & Defect Remediation Summary
 
-- **Total Functional Requirements Tracked:** 24
-- **Automated Verification Pass Rate:** **100% (23 / 23 applicable software requirements passed)**
+- **Total Functional Requirements Tracked:** 30
+- **Automated Verification Pass Rate:** **100% (29 / 29 applicable software requirements passed)**
 - **Blocked Hardware Requirements:** 1 (REQ-DEV-01: Physical Android device validation due to absent local Android SDK toolchain)
-- **Remediated Vulnerabilities & Defects During Audit:**
+- **Remediated Vulnerabilities & Defects During Master Audit:**
   1. *Dual Sync Link Durability*: Replaced single `syncEventId` with independent `checkInSyncEventId` and `checkOutSyncEventId` in `AttendanceRecord.js`, preventing check-out syncs from overwriting check-in references.
   2. *SyncEngine Mutex Race*: Synchronized lock acquisition prior to asynchronous network status resolution to prevent re-entrant duplicate sync executions.
   3. *Causal Event Ordering*: Added halting logic in `syncEngine.js` preventing check-out event dispatch if prerequisite check-in fails.
   4. *Production Mobile API Targeting*: Injected production Render URL into `env.js` and `eas.json` to guarantee release builds connect to cloud infrastructure rather than local emulators.
+  5. *Role Authorization on Faculty Details (Issues E & F)*: Upgraded `securityValidation.hasRequiredRole` and `RoleBasedRoute` to accept array of allowed roles (`['admin', 'faculty']`), eliminating unauthorized redirects when administrators inspect faculty details.
+  6. *Campus Location Configuration Crash Remediation (Issue G)*: Refactored `CampusLocationConfigurationPage.jsx` from dangerous synchronous render-time fetching to asynchronous `useEffect` hook with token gating, and implemented missing backend `DELETE /api/admin/locations/:locationId` route with complete CRUD loop.
+  7. *Faculty Profile Single Source of Truth & Fallback Resolution (Issue C)*: Implemented polymorphic `$or: [{ facultyId }, { userId }, { employeeCode }]` identifier resolution in `facultyService.js` and automatic `req.user.facultyId` hydration in `authMiddleware.js`, eliminating profile 404 errors.
+  8. *Admin Attendance Faculty Metadata Population (Issue F)*: Added batch faculty metadata resolution (`populateFacultyForRecords`) in `adminAttendanceService.js`, replacing "Unknown Faculty" labels with verified name, department, designation, and employee code.
+  9. *Faculty Web Dashboard Pre-Check-In Experience (Issues A & B)*: Added explicit `AWAITING_CHECK_IN` state in `verificationNormalizer.js` and replaced uninformative dashes (`--`) with actual calendar date, pending ID badge, and source indicator in `FacultyDashboard.jsx`.
+

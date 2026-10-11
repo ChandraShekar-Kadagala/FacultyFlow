@@ -9,11 +9,18 @@ export async function getAllFaculty() {
 
 
 export async function getFacultyById(
-    facultyId
+    identifier
 ) {
+    if (!identifier) {
+        return null;
+    }
 
     return Faculty.findOne({
-        facultyId
+        $or: [
+            { facultyId: identifier },
+            { userId: identifier },
+            { employeeCode: identifier }
+        ]
     });
 }
 
@@ -29,12 +36,17 @@ export async function createFaculty(
 
 
 export async function updateFaculty(
-    facultyId,
+    identifier,
     updates
 ) {
 
     return Faculty.findOneAndUpdate(
-        { facultyId },
+        {
+            $or: [
+                { facultyId: identifier },
+                { userId: identifier }
+            ]
+        },
         updates,
         {
             new: true,
@@ -45,11 +57,16 @@ export async function updateFaculty(
 
 
 export async function deactivateFaculty(
-    facultyId
+    identifier
 ) {
 
     return Faculty.findOneAndUpdate(
-        { facultyId },
+        {
+            $or: [
+                { facultyId: identifier },
+                { userId: identifier }
+            ]
+        },
         {
             status: "inactive"
         },

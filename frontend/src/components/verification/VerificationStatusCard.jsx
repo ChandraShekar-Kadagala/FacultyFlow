@@ -31,6 +31,12 @@ const RESULT_CONFIG = {
         icon: "…"
     },
 
+    AWAITING_CHECK_IN: {
+        label: "Awaiting Check-In",
+        className: "pending",
+        icon: "⏳"
+    },
+
     UNAVAILABLE: {
         label: "Unavailable",
         className: "unavailable",

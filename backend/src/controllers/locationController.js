@@ -6,7 +6,8 @@ import {
     createCampusLocation,
     updateCampusLocation,
     activateCampusLocation,
-    deactivateCampusLocation
+    deactivateCampusLocation,
+    deleteCampusLocation
 
 } from "../services/location/locationService.js";
 
@@ -329,6 +330,41 @@ export async function deactivateLocationController(
 
                 location
 
+            });
+
+    } catch (error) {
+
+        next(error);
+
+    }
+
+}
+
+
+// ============================================================
+// DELETE
+// ============================================================
+
+export async function deleteLocationController(
+    req,
+    res,
+    next
+) {
+
+    try {
+
+        const location =
+            await deleteCampusLocation(
+                req.params.locationId
+            );
+
+        return res
+            .status(200)
+            .json({
+                success: true,
+                code: "CAMPUS_LOCATION_DELETED",
+                message: "Campus location deleted successfully.",
+                location
             });
 
     } catch (error) {

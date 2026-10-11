@@ -22,6 +22,7 @@ import {
 
 function RoleBasedRoute({
     allowedRole,
+    allowedRoles,
     children
 }) {
     const {
@@ -31,18 +32,21 @@ function RoleBasedRoute({
     const location =
         useLocation();
 
+    const targetRoles =
+        allowedRoles ||
+        (Array.isArray(allowedRole)
+            ? allowedRole
+            : allowedRole
+                ? [allowedRole]
+                : []);
+
     const allowed =
         hasRequiredRole(
             user,
-            allowedRole
+            targetRoles.length === 1
+                ? targetRoles[0]
+                : targetRoles
         );
-        console.log("ROLE DEBUG:", {
-    user,
-    userRole: user?.role,
-    allowedRole,
-    roleMatch:
-        user?.role === allowedRole
-});
 
     if (!allowed) {
 
@@ -56,13 +60,13 @@ function RoleBasedRoute({
                     .DENIED,
 
             actorId:
-                user?.id,
+                user?.id || user?.userId,
 
             route:
                 location.pathname,
 
             reason:
-                `Required role: ${allowedRole}`
+                `Required role(s): ${targetRoles.join(", ")}`
         });
 
         return (
@@ -75,24 +79,21 @@ function RoleBasedRoute({
 
     recordSecurityEvent({
         eventType:
-            allowedRole === "admin"
-                ? SECURITY_EVENTS
-                    .ADMIN_ACCESS_GRANTED
-                : SECURITY_EVENTS
-                    .ADMIN_ACCESS_GRANTED,
+            SECURITY_EVENTS
+                .ADMIN_ACCESS_GRANTED,
 
         result:
             SECURITY_RESULTS
                 .SUCCESS,
 
         actorId:
-            user?.id,
+            user?.id || user?.userId,
 
         route:
             location.pathname,
 
         reason:
-            `Role verified: ${allowedRole}`
+            `Role verified: ${user?.role}`
     });
 
     return children;

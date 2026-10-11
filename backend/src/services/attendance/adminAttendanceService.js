@@ -245,7 +245,7 @@ export async function getAdminAttendance({
     // Query attendance
     // --------------------------------------------------------
 
-    const records =
+    const rawRecords =
         await AttendanceRecord.find(
             filter
         )
@@ -258,6 +258,8 @@ export async function getAdminAttendance({
             })
             .lean();
 
+    const records =
+        await populateFacultyForRecords(rawRecords);
 
     return {
 
@@ -268,6 +270,43 @@ export async function getAdminAttendance({
 
     };
 
+}
+
+
+async function populateFacultyForRecords(records) {
+    if (!records || records.length === 0) {
+        return [];
+    }
+
+    const facultyIds = [
+        ...new Set(
+            records.map(r => r.facultyId).filter(Boolean)
+        )
+    ];
+
+    if (facultyIds.length === 0) {
+        return records;
+    }
+
+    const facultyList = await Faculty.find({
+        $or: [
+            { facultyId: { $in: facultyIds } },
+            { userId: { $in: facultyIds } },
+            { employeeCode: { $in: facultyIds } }
+        ]
+    }).lean();
+
+    const facultyMap = new Map();
+    facultyList.forEach(f => {
+        if (f.facultyId) facultyMap.set(f.facultyId, f);
+        if (f.userId) facultyMap.set(f.userId, f);
+        if (f.employeeCode) facultyMap.set(f.employeeCode, f);
+    });
+
+    return records.map(record => ({
+        ...record,
+        faculty: facultyMap.get(record.facultyId) || null
+    }));
 }
 
 
@@ -288,11 +327,18 @@ export async function getAdminAttendanceById(
     }
 
 
-    return AttendanceRecord.findOne({
+    const record = await AttendanceRecord.findOne({
 
         attendanceId
 
     }).lean();
+
+    if (!record) {
+        return null;
+    }
+
+    const populated = await populateFacultyForRecords([record]);
+    return populated[0];
 
 }
 
@@ -392,7 +438,7 @@ export async function getAttendanceByDate(
     }
 
 
-    const records =
+    const rawRecords =
         await AttendanceRecord.find({
 
             date
@@ -405,6 +451,8 @@ export async function getAttendanceByDate(
             })
             .lean();
 
+    const records =
+        await populateFacultyForRecords(rawRecords);
 
     return {
 

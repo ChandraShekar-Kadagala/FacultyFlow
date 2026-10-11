@@ -10,7 +10,8 @@ import {
     createLocationController,
     updateLocationController,
     activateLocationController,
-    deactivateLocationController
+    deactivateLocationController,
+    deleteLocationController
 
 } from "../controllers/locationController.js";
 
@@ -106,6 +107,15 @@ router.patch(
     "/:locationId/deactivate",
 
     deactivateLocationController
+
+);
+
+
+router.delete(
+
+    "/:locationId",
+
+    deleteLocationController
 
 );
 

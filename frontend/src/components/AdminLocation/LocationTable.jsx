@@ -69,119 +69,98 @@ function LocationTable({
                 <tbody>
 
                     {locations.map(
-                        location => (
-
-                            <tr
-                                key={
-                                    location.id
-                                }
-                            >
-
-                                <td>
-
-                                    <div className="location-name">
-
-                                        <div className="location-icon">
-                                            📍
+                        location => {
+                            const id = location.locationId || location.id || location._id;
+                            return (
+                                <tr
+                                    key={id}
+                                >
+                                    <td>
+                                        <div className="location-name">
+                                            <div className="location-icon">
+                                                📍
+                                            </div>
+                                            <div>
+                                                <strong>
+                                                    {location.name}
+                                                </strong>
+                                                <span>
+                                                    {id}
+                                                </span>
+                                            </div>
                                         </div>
+                                    </td>
 
-                                        <div>
+                                    <td>
+                                        {Number(
+                                            location.latitude
+                                        ).toFixed(6)}
+                                    </td>
 
-                                            <strong>
-                                                {location.name}
-                                            </strong>
+                                    <td>
+                                        {Number(
+                                            location.longitude
+                                        ).toFixed(6)}
+                                    </td>
 
-                                            <span>
-                                                {location.id}
-                                            </span>
+                                    <td>
+                                        {location.radiusMeters}
+                                        {" m"}
+                                    </td>
 
+                                    <td>
+                                        <LocationStatus
+                                            active={
+                                                location.active
+                                            }
+                                        />
+                                    </td>
+
+                                    <td>
+                                        <div className="location-actions">
+                                            <button
+                                                type="button"
+                                                className="btn-secondary"
+                                                onClick={() =>
+                                                    onEdit(
+                                                        location
+                                                    )
+                                                }
+                                            >
+                                                Edit
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className="btn-secondary"
+                                                onClick={() =>
+                                                    onToggle(
+                                                        id,
+                                                        location.active
+                                                    )
+                                                }
+                                            >
+                                                {location.active
+                                                    ? "Disable"
+                                                    : "Enable"}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className="location-delete-button"
+                                                onClick={() =>
+                                                    onDelete(
+                                                        id
+                                                    )
+                                                }
+                                            >
+                                                Delete
+                                            </button>
                                         </div>
-
-                                    </div>
-
-                                </td>
-
-
-                                <td>
-                                    {Number(
-                                        location.latitude
-                                    ).toFixed(6)}
-                                </td>
-
-
-                                <td>
-                                    {Number(
-                                        location.longitude
-                                    ).toFixed(6)}
-                                </td>
-
-
-                                <td>
-                                    {location.radiusMeters}
-                                    {" m"}
-                                </td>
-
-
-                                <td>
-                                    <LocationStatus
-                                        active={
-                                            location.active
-                                        }
-                                    />
-                                </td>
-
-
-                                <td>
-
-                                    <div className="location-actions">
-
-                                        <button
-                                            type="button"
-                                            className="btn-secondary"
-                                            onClick={() =>
-                                                onEdit(
-                                                    location
-                                                )
-                                            }
-                                        >
-                                            Edit
-                                        </button>
-
-
-                                        <button
-                                            type="button"
-                                            className="btn-secondary"
-                                            onClick={() =>
-                                                onToggle(
-                                                    location.id
-                                                )
-                                            }
-                                        >
-                                            {location.active
-                                                ? "Disable"
-                                                : "Enable"}
-                                        </button>
-
-
-                                        <button
-                                            type="button"
-                                            className="location-delete-button"
-                                            onClick={() =>
-                                                onDelete(
-                                                    location.id
-                                                )
-                                            }
-                                        >
-                                            Delete
-                                        </button>
-
-                                    </div>
-
-                                </td>
-
-                            </tr>
-
-                        )
+                                    </td>
+                                </tr>
+                            );
+                        }
                     )}
 
                 </tbody>

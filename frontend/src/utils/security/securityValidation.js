@@ -35,6 +35,10 @@ export function hasRequiredRole(
         return false;
     }
 
+    if (Array.isArray(requiredRole)) {
+        return requiredRole.includes(user.role);
+    }
+
     if (!isValidRole(requiredRole)) {
         return false;
     }

@@ -41,9 +41,29 @@ router.get(
 router.get(
     "/:facultyId",
     authenticateToken,
-    (req, res, next) => {
-        if (req.user?.role === "admin" || req.user?.facultyId === req.params.facultyId) {
+    async (req, res, next) => {
+        if (req.user?.role === "admin") {
             return next();
+        }
+        const requestedId = req.params.facultyId;
+        if (
+            req.user?.facultyId === requestedId ||
+            req.user?.userId === requestedId
+        ) {
+            return next();
+        }
+        try {
+            const { getFacultyById } = await import("../services/faculty/facultyService.js");
+            const targetFaculty = await getFacultyById(requestedId);
+            if (
+                targetFaculty &&
+                (targetFaculty.userId === req.user?.userId ||
+                 targetFaculty.facultyId === req.user?.facultyId)
+            ) {
+                return next();
+            }
+        } catch (e) {
+            // fall through to 403
         }
         return res.status(403).json({
             success: false,

@@ -1,4 +1,5 @@
 import {
+    useEffect,
     useMemo,
     useState
 } from "react";
@@ -6,6 +7,12 @@ import {
 import {
     useNavigate
 } from "react-router-dom";
+
+import useAuth from "../hooks/useAuth";
+
+import {
+    getFacultyList
+} from "../services/faculty/facultyService";
 
 import {
     facultyMembers
@@ -15,6 +22,10 @@ import {
 function FacultyManagementPage() {
 
     const navigate = useNavigate();
+    const { accessToken } = useAuth();
+
+    const [facultyData, setFacultyData] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     const [
         searchTerm,
@@ -31,19 +42,47 @@ function FacultyManagementPage() {
         setStatusFilter
     ] = useState("ALL");
 
+    useEffect(() => {
+        let mounted = true;
+
+        async function fetchFaculty() {
+            setLoading(true);
+            try {
+                if (accessToken) {
+                    const response = await getFacultyList(accessToken);
+                    if (mounted && response?.faculty && response.faculty.length > 0) {
+                        setFacultyData(response.faculty);
+                        setLoading(false);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn("Failed to load faculty from API, falling back:", err);
+            }
+
+            if (mounted) {
+                setFacultyData(facultyMembers);
+                setLoading(false);
+            }
+        }
+
+        fetchFaculty();
+
+        return () => {
+            mounted = false;
+        };
+    }, [accessToken]);
 
     const departments = useMemo(() => {
-
         return [
             ...new Set(
-                facultyMembers.map(
+                facultyData.map(
                     faculty =>
                         faculty.department
-                )
+                ).filter(Boolean)
             )
         ];
-
-    }, []);
+    }, [facultyData]);
 
 
     const filteredFaculty = useMemo(() => {
@@ -54,18 +93,18 @@ function FacultyManagementPage() {
                 .toLowerCase();
 
 
-        return facultyMembers.filter(
+        return facultyData.filter(
             faculty => {
-
+                const id = faculty.facultyId || faculty.id || "";
                 const matchesSearch =
                     search === "" ||
-                    faculty.name
+                    (faculty.name || "")
                         .toLowerCase()
                         .includes(search) ||
-                    faculty.id
+                    id
                         .toLowerCase()
                         .includes(search) ||
-                    faculty.department
+                    (faculty.department || "")
                         .toLowerCase()
                         .includes(search);
 
@@ -78,8 +117,9 @@ function FacultyManagementPage() {
 
                 const matchesStatus =
                     statusFilter === "ALL" ||
-                    faculty.status ===
-                        statusFilter;
+                    (faculty.status || "")
+                        .toLowerCase() ===
+                        statusFilter.toLowerCase();
 
 
                 return (
@@ -91,6 +131,7 @@ function FacultyManagementPage() {
         );
 
     }, [
+        facultyData,
         searchTerm,
         departmentFilter,
         statusFilter
@@ -270,102 +311,65 @@ function FacultyManagementPage() {
                         <tbody>
 
                             {filteredFaculty.map(
-                                faculty => (
-
-                                    <tr
-                                        key={
-                                            faculty.id
-                                        }
-                                    >
-
-                                        <td>
-
-                                            <div className="faculty-info">
-
-                                                <div className="faculty-avatar">
-                                                    {faculty.name.charAt(0)}
+                                faculty => {
+                                    const fid = faculty.facultyId || faculty.id;
+                                    return (
+                                        <tr
+                                            key={fid}
+                                        >
+                                            <td>
+                                                <div className="faculty-info">
+                                                    <div className="faculty-avatar">
+                                                        {(faculty.name || "F").charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <strong>
+                                                            {faculty.name}
+                                                        </strong>
+                                                        <span>
+                                                            {fid}
+                                                        </span>
+                                                    </div>
                                                 </div>
+                                            </td>
 
-                                                <div>
+                                            <td>
+                                                {faculty.employeeCode || "-"}
+                                            </td>
 
-                                                    <strong>
-                                                        {
-                                                            faculty.name
-                                                        }
-                                                    </strong>
+                                            <td>
+                                                {faculty.department || "-"}
+                                            </td>
 
-                                                    <span>
-                                                        {
-                                                            faculty.id
-                                                        }
-                                                    </span>
+                                            <td>
+                                                {faculty.designation || "-"}
+                                            </td>
 
-                                                </div>
+                                            <td>
+                                                <span
+                                                    className={
+                                                        `status-badge ${(faculty.status || "active").toLowerCase()}`
+                                                    }
+                                                >
+                                                    {faculty.status || "Active"}
+                                                </span>
+                                            </td>
 
-                                            </div>
-
-                                        </td>
-
-
-                                        <td>
-                                            {
-                                                faculty.employeeCode ||
-                                                "-"
-                                            }
-                                        </td>
-
-
-                                        <td>
-                                            {
-                                                faculty.department
-                                            }
-                                        </td>
-
-
-                                        <td>
-                                            {
-                                                faculty.designation ||
-                                                "-"
-                                            }
-                                        </td>
-
-
-                                        <td>
-
-                                            <span
-                                                className={
-                                                    `status-badge ${
-                                                        faculty.status
-                                                            ?.toLowerCase()
-                                                    }`
-                                                }
-                                            >
-                                                {
-                                                    faculty.status
-                                                }
-                                            </span>
-
-                                        </td>
-
-
-                                        <td>
-
-                                            <button
-                                                className="btn-secondary"
-                                                onClick={() =>
-                                                    navigate(
-                                                        `/faculty/${faculty.id}`
-                                                    )
-                                                }
-                                            >
-                                                View
-                                            </button>
-
-                                        </td>
-
-                                    </tr>
-
-                                )
+                                            <td>
+                                                <button
+                                                    className="btn-secondary"
+                                                    onClick={() =>
+                                                        navigate(
+                                                            `/faculty/${fid}`
+                                                        )
+                                                    }
+                                                >
+                                                    View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                }
                             )}
 
 
