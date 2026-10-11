@@ -37,10 +37,33 @@ import { timingMiddleware } from "./middleware/timingMiddleware.js";
    CORS
 ======================================== */
 
+const allowedOrigins = [
+    env.frontendUrl,
+    "https://faculty-flow-nine.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:8081",
+    "http://localhost:3000"
+].filter(Boolean);
+
 app.use(
     cors({
-        origin:
-            env.frontendUrl,
+        origin: (origin, callback) => {
+            // Allow requests with no origin (native mobile apps, curl, server-to-server)
+            if (!origin) return callback(null, true);
+
+            const isAllowed = allowedOrigins.some(allowed => {
+                if (allowed.includes(",")) {
+                    return allowed.split(",").map(s => s.trim()).includes(origin);
+                }
+                return allowed === origin;
+            });
+
+            if (isAllowed || env.nodeEnv === "development") {
+                return callback(null, true);
+            }
+
+            return callback(null, false);
+        },
         credentials: true
     })
 );

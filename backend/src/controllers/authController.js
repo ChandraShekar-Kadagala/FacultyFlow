@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/User.js";
 
 import {
@@ -15,6 +16,15 @@ export async function login(
 ) {
 
     try {
+
+        // Check database connection readiness
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                success: false,
+                code: "DATABASE_UNAVAILABLE",
+                message: "Database service is temporarily unavailable. Please try again shortly."
+            });
+        }
 
         const {
             email,

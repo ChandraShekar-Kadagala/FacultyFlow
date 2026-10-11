@@ -1,5 +1,6 @@
 import {
-    useState
+    useState,
+    useRef
 } from "react";
 
 import {
@@ -57,12 +58,18 @@ function LoginScreen() {
         setLoading
     ] = useState(false);
 
+    const isSubmittingRef = useRef(false);
+
 
     // ========================================================
     // LOGIN
     // ========================================================
 
     async function handleLogin() {
+
+        if (loading || isSubmittingRef.current) {
+            return;
+        }
 
         setError("");
 
@@ -80,7 +87,7 @@ function LoginScreen() {
 
         }
 
-
+        isSubmittingRef.current = true;
         setLoading(true);
 
 
@@ -125,6 +132,7 @@ function LoginScreen() {
         } finally {
 
             setLoading(false);
+            isSubmittingRef.current = false;
 
         }
 

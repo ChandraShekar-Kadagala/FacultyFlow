@@ -10,15 +10,19 @@
 export const PRODUCTION_API_URL = "https://facultyflow-1kgs.onrender.com/api";
 
 function resolveApiBaseUrl() {
-    const configuredUrl = process.env.EXPO_PUBLIC_API_URL;
-
-    if (configuredUrl && configuredUrl.trim().length > 0) {
-        return configuredUrl.trim().replace(/\/+$/, "");
-    }
+    const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
     // Release safeguard: Production builds must target the authoritative Render backend
+    // and never use local emulator/localhost loopbacks
     if (process.env.NODE_ENV === "production") {
+        if (configuredUrl && !configuredUrl.includes("localhost") && !configuredUrl.includes("10.0.2.2")) {
+            return configuredUrl.replace(/\/+$/, "");
+        }
         return PRODUCTION_API_URL;
+    }
+
+    if (configuredUrl && configuredUrl.length > 0) {
+        return configuredUrl.replace(/\/+$/, "");
     }
 
     const isAndroid = process.env.EXPO_OS === "android";
@@ -33,7 +37,7 @@ export const API_BASE_URL = resolveApiBaseUrl();
 
 export const API_CONFIG = {
     BASE_URL: API_BASE_URL,
-    TIMEOUT_MS: 15000,
+    TIMEOUT_MS: 35000,
     AUTH_HEADER_PREFIX: "Bearer"
 };
 

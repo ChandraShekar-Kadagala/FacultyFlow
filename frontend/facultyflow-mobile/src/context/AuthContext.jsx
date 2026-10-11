@@ -4,7 +4,8 @@ import {
     useEffect,
     useMemo,
     useState,
-    useCallback
+    useCallback,
+    useRef
 } from "react";
 
 import {
@@ -31,6 +32,7 @@ export function AuthProvider({ children }) {
     const [accessToken, setAccessToken] = useState(null);
     const [loading, setLoading] = useState(true);
     const [sessionExpired, setSessionExpired] = useState(false);
+    const isLoggingInRef = useRef(false);
 
     // ========================================================
     // LOGOUT
@@ -72,12 +74,12 @@ export function AuthProvider({ children }) {
                     return;
                 }
 
-                // Verify token with backend
+                // Verify token with backend (with cold-start tolerance)
                 try {
                     const verifyResponse = await apiRequest("/auth/verify", {
                         method: "GET",
                         accessToken: storedToken,
-                        timeoutMs: 5000
+                        timeoutMs: 25000
                     });
 
                     if (isMounted && verifyResponse?.success) {
@@ -126,6 +128,14 @@ export function AuthProvider({ children }) {
             };
         }
 
+        if (isLoggingInRef.current) {
+            return {
+                success: false,
+                message: "Sign-in request is already in progress. Please wait."
+            };
+        }
+
+        isLoggingInRef.current = true;
         try {
             const result = await loginUser({
                 email: email.trim().toLowerCase(),
@@ -173,6 +183,8 @@ export function AuthProvider({ children }) {
                 success: false,
                 message: err?.message || "Unable to sign in. Please verify your credentials."
             };
+        } finally {
+            isLoggingInRef.current = false;
         }
     }, []);
 

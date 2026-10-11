@@ -40,19 +40,13 @@ export async function loginUser({
         await apiRequest(
             "/auth/login",
             {
-
-                method:
-                    "POST",
-
+                method: "POST",
                 body: {
-
-                    email:
-                        email.trim(),
-
+                    email: email.trim(),
                     password
-
-                }
-
+                },
+                timeoutMs: 40000,
+                retry: true
             }
         );
 
