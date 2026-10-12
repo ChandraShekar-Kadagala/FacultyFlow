@@ -70,26 +70,7 @@ export async function getActiveCampusLocation() {
     }
 
 
-    if (
-        locations.length > 1
-    ) {
-
-        const error =
-            new Error(
-
-                "Multiple active campus locations are configured."
-
-            );
-
-        error.statusCode =
-            500;
-
-        error.code =
-            "MULTIPLE_ACTIVE_CAMPUS_LOCATIONS";
-
-        throw error;
-
-    }
+    // Multiple active locations supported - returning primary
 
 
     return locations[0];
@@ -355,143 +336,83 @@ export async function deactivateCampusLocation(
 // ============================================================
 
 export async function verifyCampusLocation({
-
     latitude,
     longitude,
     accuracyMeters = null
-
 }) {
+    const locations = await CampusLocation.find({ active: true }).sort({ createdAt: -1 });
 
-    const location =
-        await getActiveCampusLocation();
-
+    if (locations.length === 0) {
+        return {
+            result: "PENDING",
+            reason: "No active campus location is configured."
+        };
+    }
 
     if (
-
         typeof latitude !== "number" ||
-
         typeof longitude !== "number"
-
     ) {
-
         return {
-
-            result:
-                "UNAVAILABLE",
-
-            reason:
-                "A valid device location signal is unavailable."
-
+            result: "UNAVAILABLE",
+            reason: "A valid device location signal is unavailable."
         };
-
     }
-
 
     if (
-
         latitude < -90 ||
-
         latitude > 90 ||
-
         longitude < -180 ||
-
         longitude > 180
-
     ) {
-
         return {
-
-            result:
-                "FAILED",
-
-            reason:
-                "The supplied location coordinates are invalid."
-
+            result: "FAILED",
+            reason: "The supplied location coordinates are invalid."
         };
-
     }
 
+    let closestLocation = locations[0];
+    let closestDistance = Infinity;
 
-    const distanceMeters =
-        calculateDistanceMeters({
-
-            latitude1:
-                location.latitude,
-
-            longitude1:
-                location.longitude,
-
-            latitude2:
-                latitude,
-
-            longitude2:
-                longitude
-
+    for (const loc of locations) {
+        const distanceMeters = calculateDistanceMeters({
+            latitude1: loc.latitude,
+            longitude1: loc.longitude,
+            latitude2: latitude,
+            longitude2: longitude
         });
 
+        if (distanceMeters < closestDistance) {
+            closestDistance = distanceMeters;
+            closestLocation = loc;
+        }
 
-    const verified =
-        isWithinRadius({
-
+        const verified = isWithinRadius({
             distanceMeters,
-
-            radiusMeters:
-                location.radiusMeters
-
+            radiusMeters: loc.radiusMeters
         });
 
-
-    if (!verified) {
-
-        return {
-
-            result:
-                "FAILED",
-
-            reason:
-                "Faculty device is outside the configured campus area.",
-
-            locationId:
-                location.locationId,
-
-            distanceMeters,
-
-            radiusMeters:
-                location.radiusMeters,
-
-            accuracyMeters
-
-        };
-
+        if (verified) {
+            return {
+                result: "VERIFIED",
+                reason: `Faculty device is within the configured campus area (${loc.name}).`,
+                locationId: loc.locationId,
+                distanceMeters,
+                radiusMeters: loc.radiusMeters,
+                accuracyMeters
+            };
+        }
     }
-
 
     return {
-
-        result:
-            "VERIFIED",
-
-        reason:
-            "Faculty device is within the configured campus area.",
-
-        locationId:
-            location.locationId,
-
-        distanceMeters,
-
-        radiusMeters:
-            location.radiusMeters,
-
+        result: "FAILED",
+        reason: `Faculty device is outside configured campus areas (closest: ${closestLocation.name}, ${Math.round(closestDistance)}m away, radius: ${closestLocation.radiusMeters}m).`,
+        locationId: closestLocation.locationId,
+        distanceMeters: closestDistance,
+        radiusMeters: closestLocation.radiusMeters,
         accuracyMeters
-
     };
-
 }
-
-
-// ============================================================
-// DELETE
-// ============================================================
 
 export async function deleteCampusLocation(locationId) {
     const location = await CampusLocation.findOneAndDelete({

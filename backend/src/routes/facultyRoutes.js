@@ -36,6 +36,55 @@ router.get(
 );
 
 
+// Get currently authenticated faculty profile
+router.get(
+    "/profile",
+    authenticateToken,
+    async (req, res, next) => {
+        try {
+            const { getFacultyById } = await import("../services/faculty/facultyService.js");
+            const targetId = req.user?.facultyId || req.user?.userId;
+            const faculty = await getFacultyById(targetId);
+            if (!faculty) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Faculty profile not found."
+                });
+            }
+            res.status(200).json({
+                success: true,
+                faculty
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+router.get(
+    "/me",
+    authenticateToken,
+    async (req, res, next) => {
+        try {
+            const { getFacultyById } = await import("../services/faculty/facultyService.js");
+            const targetId = req.user?.facultyId || req.user?.userId;
+            const faculty = await getFacultyById(targetId);
+            if (!faculty) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Faculty profile not found."
+                });
+            }
+            res.status(200).json({
+                success: true,
+                faculty
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
 // Get one faculty
 // Admin can view any faculty; Faculty can view their own profile
 router.get(
@@ -45,7 +94,12 @@ router.get(
         if (req.user?.role === "admin") {
             return next();
         }
-        const requestedId = req.params.facultyId;
+        let requestedId = req.params.facultyId;
+        if (requestedId === "me" || requestedId === "profile") {
+            requestedId = req.user?.facultyId || req.user?.userId;
+            req.params.facultyId = requestedId;
+            return next();
+        }
         if (
             req.user?.facultyId === requestedId ||
             req.user?.userId === requestedId

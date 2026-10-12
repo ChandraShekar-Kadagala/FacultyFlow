@@ -155,6 +155,7 @@ function CampusLocationConfigurationPage() {
             active: Boolean(location.active)
         };
 
+        setSaving(true);
         try {
             let result;
             if (editingId) {
@@ -190,6 +191,8 @@ function CampusLocationConfigurationPage() {
             setMessage(
                 err.message || "Failed to save campus location."
             );
+        } finally {
+            setSaving(false);
         }
     }
 
@@ -364,6 +367,8 @@ function CampusLocationConfigurationPage() {
                     onChange={handleChange}
                     onSave={handleSave}
                     onCancel={handleCancel}
+                    saving={saving}
+                    formMessage={message}
                 />
             </section>
 
@@ -386,10 +391,10 @@ function CampusLocationConfigurationPage() {
                     <button
                         type="button"
                         className="btn-secondary"
-                        onClick={handleReset}
+                        onClick={refreshLocations}
                         disabled={loading}
                     >
-                        {loading ? "Refreshing..." : "Refresh"}
+                        {loading ? "Refreshing..." : "↻ Refresh"}
                     </button>
                 </div>
 

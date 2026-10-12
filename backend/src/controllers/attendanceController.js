@@ -26,6 +26,7 @@ import {
 
 import Faculty
     from "../models/Faculty.js";
+import { getFacultyById } from "../services/faculty/facultyService.js";
 
 
 import {
@@ -292,12 +293,13 @@ export async function checkInController(
         // LOAD FACULTY
         // ====================================================
 
-        const faculty =
-            await Faculty.findOne({
-
-                facultyId
-
-            });
+        let faculty = await Faculty.findOne({ facultyId });
+        if (!faculty && req.user?.userId) {
+            faculty = await Faculty.findOne({ userId: req.user.userId });
+        }
+        if (!faculty && (facultyId || req.user?.userId)) {
+            faculty = await getFacultyById(facultyId || req.user?.userId);
+        }
 
 
         if (!faculty) {
@@ -752,12 +754,13 @@ export async function checkOutController(
         // LOAD FACULTY
         // ====================================================
 
-        const faculty =
-            await Faculty.findOne({
-
-                facultyId
-
-            });
+        let faculty = await Faculty.findOne({ facultyId });
+        if (!faculty && req.user?.userId) {
+            faculty = await Faculty.findOne({ userId: req.user.userId });
+        }
+        if (!faculty && (facultyId || req.user?.userId)) {
+            faculty = await getFacultyById(facultyId || req.user?.userId);
+        }
 
 
         if (!faculty) {

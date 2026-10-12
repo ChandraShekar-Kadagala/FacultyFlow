@@ -10,7 +10,9 @@ function LocationForm({
     editing,
     onChange,
     onSave,
-    onCancel
+    onCancel,
+    saving = false,
+    formMessage = ""
 }) {
     const [locating, setLocating] = useState(false);
     const [locatingStatus, setLocatingStatus] = useState("");
@@ -247,6 +249,11 @@ function LocationForm({
             </label>
 
 
+            {formMessage && (
+                <div className={`location-detect-message ${formMessage.toLowerCase().includes("success") || formMessage.toLowerCase().includes("added") || formMessage.toLowerCase().includes("updated") ? "success" : "error"}`} role="status">
+                    {formMessage}
+                </div>
+            )}
             <div className="location-form-actions">
 
                 {editing && (
@@ -264,10 +271,11 @@ function LocationForm({
                     type="button"
                     className="btn-primary"
                     onClick={onSave}
+                    disabled={saving || locating}
                 >
-                    {editing
-                        ? "Update Campus"
-                        : "Add Campus"}
+                    {saving
+                        ? (editing ? "Updating Campus..." : "Adding Campus...")
+                        : (editing ? "Update Campus" : "Add Campus")}
                 </button>
 
             </div>

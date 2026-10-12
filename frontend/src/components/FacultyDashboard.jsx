@@ -137,16 +137,14 @@ function FacultyDashboard() {
         Boolean(accessToken) &&
         !attendanceLoading &&
         !actionLoading &&
-        !attendance &&
-        !attendanceError;
+        !attendance;
 
     const canCheckOut =
         Boolean(accessToken) &&
         !attendanceLoading &&
         !actionLoading &&
         Boolean(attendance?.checkInTime) &&
-        !attendance?.checkOutTime &&
-        !attendanceError;
+        !attendance?.checkOutTime;
 
     const isAttendanceComplete = Boolean(attendance?.checkInTime && attendance?.checkOutTime);
 
