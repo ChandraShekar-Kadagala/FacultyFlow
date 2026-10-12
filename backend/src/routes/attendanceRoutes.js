@@ -125,7 +125,9 @@ router.get(
                 networks: networks.map(n => ({
                     name: n.name,
                     expectedSSID: n.expectedSSID,
-                    building: n.building
+                    building: n.building,
+                    verificationMode: n.verificationMode,
+                    allowedIPRanges: n.allowedIPRanges
                 }))
             });
         } catch (error) {

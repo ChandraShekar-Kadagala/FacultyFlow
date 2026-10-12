@@ -106,6 +106,14 @@ export function errorHandler(
 
     };
 
+    if (error.verification) {
+        response.verification = error.verification;
+    }
+
+    if (error.blockingTypes) {
+        response.blockingTypes = error.blockingTypes;
+    }
+
 
     // ========================================================
     // DEVELOPMENT DEBUG INFORMATION

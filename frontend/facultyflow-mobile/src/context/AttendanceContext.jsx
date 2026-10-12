@@ -10,7 +10,8 @@ import { useAuth } from "./AuthContext";
 import {
     getTodayAttendance,
     checkInAttendance,
-    checkOutAttendance
+    checkOutAttendance,
+    getActiveAttendancePolicy
 } from "../services/attendance/attendanceApi";
 import {
     getDeviceSignal,
@@ -36,6 +37,33 @@ const AttendanceContext = createContext(null);
 export function getAttendanceErrorMessage(error, fallbackMessage = "Attendance operation failed.") {
     const code = error?.code || error?.data?.code;
     const msg = error?.message || error?.data?.message;
+    const verif = error?.verification || error?.data?.verification;
+    const blockingTypes = error?.blockingTypes || error?.data?.blockingTypes || verif?.blockingTypes || [];
+
+    if (code === "ATTENDANCE_VERIFICATION_FAILED" || verif?.result === "FAILED") {
+        if (Array.isArray(blockingTypes) && blockingTypes.length > 0) {
+            const reasons = [];
+            if (blockingTypes.includes("LOCATION")) {
+                reasons.push("Campus geofence check failed: Your device is outside the authorized campus perimeter.");
+            }
+            if (blockingTypes.includes("DEVICE")) {
+                reasons.push("Device biometric check failed: Native biometric verification was not completed.");
+            }
+            if (blockingTypes.includes("NETWORK")) {
+                reasons.push("Campus network check failed: Not connected to an authorized university network.");
+            }
+            if (blockingTypes.includes("SCHEDULE")) {
+                reasons.push("Schedule check failed: Attendance is outside permitted institutional hours.");
+            }
+            if (reasons.length > 0) {
+                return reasons.join(" ");
+            }
+        }
+        if (verif?.reason && verif.reason !== "One or more required verification checks failed.") {
+            return verif.reason;
+        }
+        return "One or more required verification checks failed (location, biometric, network, or schedule).";
+    }
 
     switch (code) {
         case "ATTENDANCE_ALREADY_EXISTS":
@@ -50,8 +78,6 @@ export function getAttendanceErrorMessage(error, fallbackMessage = "Attendance o
             return "Faculty profile was not found.";
         case "FACULTY_PROFILE_UNAVAILABLE":
             return "Authenticated faculty profile is not available.";
-        case "ATTENDANCE_VERIFICATION_FAILED":
-            return msg || "Attendance verification failed against campus policies.";
         case "ATTENDANCE_VERIFICATION_INCOMPLETE":
             return msg || "Attendance verification is incomplete.";
         case "ATTENDANCE_OUTSIDE_ALLOWED_TIME":
@@ -66,6 +92,7 @@ export function getAttendanceErrorMessage(error, fallbackMessage = "Attendance o
             return msg || fallbackMessage;
     }
 }
+
 
 export function AttendanceProvider({ children }) {
     const { user, accessToken } = useAuth();
@@ -165,19 +192,42 @@ export function AttendanceProvider({ children }) {
         }
     }, [accessToken, currentUserId, isSyncingState, refreshPendingCount, refreshAttendance]);
 
+    const [activePolicy, setActivePolicy] = useState(null);
+    const [policyLoading, setPolicyLoading] = useState(false);
+
+    // Fetch active policy from server
+    const fetchPolicy = useCallback(async () => {
+        if (!accessToken) return null;
+        setPolicyLoading(true);
+        try {
+            const res = await getActiveAttendancePolicy(accessToken);
+            if (res?.success && res.policy) {
+                setActivePolicy(res.policy);
+                return res.policy;
+            }
+        } catch (err) {
+            console.warn("Could not fetch active policy:", err.message);
+        } finally {
+            setPolicyLoading(false);
+        }
+        return null;
+    }, [accessToken]);
+
     // Initial load when user/token changes
     useEffect(() => {
         if (accessToken) {
             refreshAttendance(false);
             refreshPendingCount();
+            fetchPolicy();
         } else {
             setAttendance(null);
             setVerification(null);
+            setActivePolicy(null);
             setError(null);
             setSuccessMessage(null);
             setPendingSyncCount(0);
         }
-    }, [accessToken, currentUserId, refreshAttendance, refreshPendingCount]);
+    }, [accessToken, currentUserId, refreshAttendance, refreshPendingCount, fetchPolicy]);
 
     // Monitor network connectivity and auto-trigger sync on reconnection
     useEffect(() => {
@@ -208,7 +258,7 @@ export function AttendanceProvider({ children }) {
     }, [accessToken, currentUserId, triggerSync]);
 
     // Perform Check-In (Online with Seamless Offline Fallback)
-    const performCheckIn = useCallback(async () => {
+    const performCheckIn = useCallback(async (customSignals = null) => {
         if (!accessToken || !currentUserId) {
             setError("You must be logged in to check in.");
             return { success: false, error: "Not authenticated" };
@@ -223,17 +273,20 @@ export function AttendanceProvider({ children }) {
         setSuccessMessage(null);
 
         try {
-            // Collect device & location observations
-            const [device, locationResult] = await Promise.all([
-                getDeviceSignal(),
-                getLocationSignal()
-            ]);
+            // Use custom collected observations if provided, or collect default device & location
+            let payloadSignals = customSignals;
+            if (!payloadSignals) {
+                const [device, locationResult] = await Promise.all([
+                    getDeviceSignal(),
+                    getLocationSignal()
+                ]);
 
-            const payloadSignals = {
-                device,
-                location: locationResult?.signal || null,
-                network: null
-            };
+                payloadSignals = {
+                    device,
+                    location: locationResult?.signal || null,
+                    network: null
+                };
+            }
 
             const connected = await isNetworkConnected();
 
@@ -308,19 +361,24 @@ export function AttendanceProvider({ children }) {
         } catch (err) {
             console.error("Check-in error:", err);
 
-            if (err?.verification) {
-                setVerification(err.verification);
-            } else if (err?.data?.verification) {
-                setVerification(err.data.verification);
+            const verifData = err?.verification || err?.data?.verification || null;
+            if (verifData) {
+                setVerification(verifData);
             }
 
             const friendlyError = getAttendanceErrorMessage(err, "Check-in failed.");
             setError(friendlyError);
-            return { success: false, error: friendlyError };
+            return {
+                success: false,
+                error: friendlyError,
+                verification: verifData,
+                blockingTypes: err?.blockingTypes || err?.data?.blockingTypes || verifData?.blockingTypes || []
+            };
         } finally {
             setActionLoading(false);
         }
     }, [accessToken, currentUserId, actionLoading, refreshPendingCount]);
+
 
     // Perform Check-Out (Online with Seamless Offline Fallback)
     const performCheckOut = useCallback(async () => {
@@ -464,6 +522,9 @@ export function AttendanceProvider({ children }) {
     const value = useMemo(() => ({
         attendance,
         verification,
+        activePolicy,
+        policyLoading,
+        fetchPolicy,
         loading,
         actionLoading,
         error,
@@ -492,6 +553,9 @@ export function AttendanceProvider({ children }) {
     }), [
         attendance,
         verification,
+        activePolicy,
+        policyLoading,
+        fetchPolicy,
         loading,
         actionLoading,
         error,
@@ -515,6 +579,7 @@ export function AttendanceProvider({ children }) {
         performCheckOut,
         clearMessages
     ]);
+
 
     return (
         <AttendanceContext.Provider value={value}>

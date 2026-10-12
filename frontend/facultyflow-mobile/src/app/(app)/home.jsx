@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
     ActivityIndicator,
     RefreshControl,
@@ -13,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { useAttendance } from "../../context/AttendanceContext";
 import SyncStatus from "../../components/SyncStatus";
+import CheckInVerificationModal from "../../components/CheckInVerificationModal";
 
 function formatTimeString(isoString) {
     if (!isoString) return "—";
@@ -51,17 +53,18 @@ export default function HomeScreen() {
         attendanceStatus,
         verificationStatus,
         refreshAttendance,
-        performCheckIn,
         performCheckOut,
         clearMessages
     } = useAttendance();
 
     const isVerified = verificationStatus === "Verified" || verificationStatus === "VERIFIED";
+    const [verificationModalVisible, setVerificationModalVisible] = useState(false);
 
     return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={styles.content}
+        <View style={styles.root}>
+            <ScrollView
+                style={styles.container}
+                contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
             refreshControl={
                 <RefreshControl
@@ -183,7 +186,7 @@ export default function HomeScreen() {
 
                         <TouchableOpacity
                             style={[styles.primaryActionBtn, actionLoading && styles.btnDisabled]}
-                            onPress={performCheckIn}
+                            onPress={() => setVerificationModalVisible(true)}
                             disabled={!canCheckIn}
                             activeOpacity={0.8}
                         >
@@ -199,6 +202,7 @@ export default function HomeScreen() {
                                 </>
                             )}
                         </TouchableOpacity>
+
                     </View>
                 ) : (
                     /* State 2 & 3: Checked in (active session) or Completed */
@@ -311,14 +315,29 @@ export default function HomeScreen() {
                 </TouchableOpacity>
             </View>
         </ScrollView>
+
+        <CheckInVerificationModal
+            visible={verificationModalVisible}
+            onClose={() => setVerificationModalVisible(false)}
+            onComplete={() => {
+                setVerificationModalVisible(false);
+                refreshAttendance(true);
+            }}
+        />
+    </View>
     );
 }
 
 const styles = StyleSheet.create({
+    root: {
+        flex: 1,
+        backgroundColor: "#F8FAFC"
+    },
     container: {
         flex: 1,
         backgroundColor: "#F8FAFC"
     },
+
     content: {
         padding: 20,
         paddingTop: 56,

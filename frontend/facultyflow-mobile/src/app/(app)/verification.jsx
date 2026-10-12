@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
     ActivityIndicator,
     RefreshControl,
@@ -10,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 import { useAttendance } from "../../context/AttendanceContext";
+import CheckInVerificationModal from "../../components/CheckInVerificationModal";
 
 function normalizeSignals(verification, attendance) {
     const rawEvents = verification?.events || verification?.verificationEvents || [];
@@ -129,37 +131,82 @@ export default function VerificationScreen() {
     const {
         attendance,
         verification,
+        activePolicy,
         loading,
         verificationStatus,
         refreshAttendance
     } = useAttendance();
 
+    const [verificationModalVisible, setVerificationModalVisible] = useState(false);
+
     const signals = normalizeSignals(verification, attendance);
     const overallResult = (verification?.result || verificationStatus || "PENDING").toUpperCase();
     const isOverallVerified = overallResult === "VERIFIED" || overallResult === "PASSED";
 
+    const isCheckedIn = Boolean(attendance?.checkInTime);
+    const requiredSignals = Array.isArray(activePolicy?.requiredSignals) && activePolicy.requiredSignals.length > 0
+        ? activePolicy.requiredSignals
+        : ["IDENTITY", "LOCATION", "DEVICE"];
+
     return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-                <RefreshControl
-                    refreshing={loading}
-                    onRefresh={() => refreshAttendance(true)}
-                    tintColor="#2563EB"
-                    colors={["#2563EB"]}
-                />
-            }
-        >
-            {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.eyebrow}>SECURITY &amp; COMPLIANCE</Text>
-                <Text style={styles.title}>Signal Verification</Text>
-                <Text style={styles.subtitle}>
-                    Real-time multi-factor signal analysis evaluated by the FacultyFlow backend engine.
-                </Text>
-            </View>
+        <View style={styles.root}>
+            <ScrollView
+                style={styles.container}
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={loading}
+                        onRefresh={() => refreshAttendance(true)}
+                        tintColor="#2563EB"
+                        colors={["#2563EB"]}
+                    />
+                }
+            >
+                {/* Header */}
+                <View style={styles.header}>
+                    <Text style={styles.eyebrow}>SECURITY &amp; COMPLIANCE</Text>
+                    <Text style={styles.title}>Signal Verification</Text>
+                    <Text style={styles.subtitle}>
+                        Real-time multi-factor signal analysis evaluated by the FacultyFlow backend engine.
+                    </Text>
+                </View>
+
+                {/* Active Campus Policy Card */}
+                <View style={styles.policySummaryCard}>
+                    <View style={styles.policySummaryHeader}>
+                        <Ionicons name="shield" size={18} color="#2563EB" style={{ marginRight: 6 }} />
+                        <Text style={styles.policySummaryTitle}>ACTIVE CAMPUS POLICY</Text>
+                    </View>
+                    <View style={styles.policySummaryRow}>
+                        <Text style={styles.policySummaryLabel}>Official Attendance Window:</Text>
+                        <Text style={styles.policySummaryValue}>
+                            {activePolicy?.startTime || "00:00"} – {activePolicy?.endTime || "23:59"}
+                        </Text>
+                    </View>
+                    <View style={styles.policySignalsRow}>
+                        <Text style={styles.policySummaryLabel}>Required Checks ({requiredSignals.length}):</Text>
+                        <View style={styles.signalPillsContainer}>
+                            {requiredSignals.map((sig) => (
+                                <View key={sig} style={styles.signalPill}>
+                                    <Text style={styles.signalPillText}>● {sig}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+
+                    {!isCheckedIn ? (
+                        <TouchableOpacity
+                            style={styles.checkInModalLaunchBtn}
+                            onPress={() => setVerificationModalVisible(true)}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                            <Text style={styles.checkInModalLaunchBtnText}>Run Verification Check-In</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
+
 
             {/* Overall Verdict Card */}
             <View style={[
@@ -236,14 +283,108 @@ export default function VerificationScreen() {
                 )}
             </TouchableOpacity>
         </ScrollView>
+
+        <CheckInVerificationModal
+            visible={verificationModalVisible}
+            onClose={() => setVerificationModalVisible(false)}
+            onComplete={() => {
+                setVerificationModalVisible(false);
+                refreshAttendance(true);
+            }}
+        />
+    </View>
     );
 }
 
 const styles = StyleSheet.create({
+    root: {
+        flex: 1,
+        backgroundColor: "#F8FAFC"
+    },
     container: {
         flex: 1,
         backgroundColor: "#F8FAFC"
     },
+    policySummaryCard: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 14,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: "#E2E8F0",
+        marginBottom: 16,
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+        elevation: 1
+    },
+    policySummaryHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 8
+    },
+    policySummaryTitle: {
+        fontSize: 11,
+        fontWeight: "800",
+        color: "#2563EB",
+        letterSpacing: 0.8
+    },
+    policySummaryRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 6
+    },
+    policySummaryLabel: {
+        fontSize: 12,
+        color: "#64748B",
+        fontWeight: "600"
+    },
+    policySummaryValue: {
+        fontSize: 12,
+        fontWeight: "700",
+        color: "#0F172A"
+    },
+    policySignalsRow: {
+        marginTop: 4,
+        marginBottom: 10
+    },
+    signalPillsContainer: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        marginTop: 6
+    },
+    signalPill: {
+        backgroundColor: "#EFF6FF",
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 8,
+        marginRight: 6,
+        marginBottom: 6,
+        borderWidth: 1,
+        borderColor: "#BFDBFE"
+    },
+    signalPillText: {
+        fontSize: 10,
+        fontWeight: "800",
+        color: "#1D4ED8"
+    },
+    checkInModalLaunchBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#2563EB",
+        borderRadius: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        marginTop: 6
+    },
+    checkInModalLaunchBtnText: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#FFFFFF"
+    },
+
     content: {
         padding: 20,
         paddingTop: 56,

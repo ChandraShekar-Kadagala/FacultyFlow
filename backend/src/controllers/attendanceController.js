@@ -357,9 +357,21 @@ export async function checkInController(
             null;
 
 
+        const clientIp =
+            req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+            req.socket?.remoteAddress ||
+            req.ip;
+
         const networkSignal =
-            req.body?.network ||
-            null;
+            req.body?.network
+                ? {
+                    ...req.body.network,
+                    observedIP: req.body.network.observedIP || clientIp
+                }
+                : {
+                    observedIP: clientIp,
+                    capability: "CLIENT_IP"
+                };
 
 
         const locationSignal =
@@ -812,9 +824,21 @@ export async function checkOutController(
             null;
 
 
+        const clientIp =
+            req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+            req.socket?.remoteAddress ||
+            req.ip;
+
         const networkSignal =
-            req.body?.network ||
-            null;
+            req.body?.network
+                ? {
+                    ...req.body.network,
+                    observedIP: req.body.network.observedIP || clientIp
+                }
+                : {
+                    observedIP: clientIp,
+                    capability: "CLIENT_IP"
+                };
 
 
         const locationSignal =

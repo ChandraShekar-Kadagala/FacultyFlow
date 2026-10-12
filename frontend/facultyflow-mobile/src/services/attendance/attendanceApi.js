@@ -137,4 +137,12 @@ export async function getActiveCampusLocations(accessToken) {
         method: "GET",
         accessToken
     });
-}
+}
+
+export async function getActiveCampusNetworks(accessToken) {
+    return apiRequest("/attendance/networks", {
+        method: "GET",
+        accessToken
+    });
+}
+

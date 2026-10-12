@@ -1,49 +1,36 @@
+/**
+ * Validates whether the current device time falls within configured institutional attendance hours.
+ */
 export async function verifySchedule({
-    currentTime,
-    startTime = "09:30",
-    endTime = "17:00"
-}) {
-    if (!currentTime) {
-        return {
-            key: "schedule",
-            label: "Schedule & Time",
-            status: "failed",
-            passed: false,
-            available: true,
-            reason: "Current time is unavailable."
-        };
-    }
+    currentTime = new Date(),
+    policy = null
+} = {}) {
+    const startTimeStr = policy?.startTime || "00:00";
+    const endTimeStr = policy?.endTime || "23:59";
 
-    const currentMinutes =
-        currentTime.hours * 60 +
-        currentTime.minutes;
+    const now = currentTime instanceof Date ? currentTime : new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    const [startHour, startMinute] =
-        startTime.split(":").map(Number);
+    const [startH, startM] = startTimeStr.split(":").map(Number);
+    const [endH, endM] = endTimeStr.split(":").map(Number);
 
-    const [endHour, endMinute] =
-        endTime.split(":").map(Number);
+    const startMinutes = (startH || 0) * 60 + (startM || 0);
+    const endMinutes = (endH || 0) * 60 + (endM || 0);
 
-    const startMinutes =
-        startHour * 60 +
-        startMinute;
+    const passed = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
 
-    const endMinutes =
-        endHour * 60 +
-        endMinute;
-
-    const passed =
-        currentMinutes >= startMinutes &&
-        currentMinutes <= endMinutes;
+    const formattedTime = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     return {
         key: "schedule",
-        label: "Schedule & Time",
+        type: "SCHEDULE",
+        label: "Institutional Attendance Window",
         status: passed ? "passed" : "failed",
         passed,
         available: true,
         reason: passed
-            ? null
-            : "Current time is outside the configured attendance window."
+            ? `Current time (${formattedTime}) is within permitted window (${startTimeStr} - ${endTimeStr}).`
+            : `Current time (${formattedTime}) is outside permitted window (${startTimeStr} - ${endTimeStr}).`,
+        diagnostics: `${formattedTime} (Permitted: ${startTimeStr} – ${endTimeStr})`
     };
 }

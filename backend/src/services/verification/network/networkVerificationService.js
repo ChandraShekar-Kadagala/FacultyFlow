@@ -178,6 +178,7 @@ export async function verifyNetworkSignal({
             case "BSSID_OR_IP":
 
                 verified =
+                    Boolean(network.expectedSSID && ssidMatch) ||
                     bssidMatch ||
                     ipMatch;
 
@@ -195,7 +196,10 @@ export async function verifyNetworkSignal({
 
             default:
 
-                verified = false;
+                verified =
+                    Boolean(network.expectedSSID && ssidMatch) ||
+                    bssidMatch ||
+                    ipMatch;
 
         }
 

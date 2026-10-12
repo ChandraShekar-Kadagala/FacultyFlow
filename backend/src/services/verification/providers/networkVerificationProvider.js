@@ -16,24 +16,27 @@ import {
 // NETWORK VERIFICATION PROVIDER
 // ============================================================
 
-export async function verifyNetwork() {
+export async function verifyNetwork({
+    networkSignal = null
+} = {}) {
 
     // --------------------------------------------------------
-    // Get network signal from current web adapter
+    // Get network signal from client or fallback to web adapter
     // --------------------------------------------------------
 
     const signal =
+        networkSignal ||
         getWebNetworkSignal();
 
 
     // --------------------------------------------------------
-    // Current web client cannot expose the required
-    // Wi-Fi information.
+    // Check if network signal is unavailable
     // --------------------------------------------------------
 
     if (
-        signal.capability ===
-        "UNAVAILABLE"
+        !signal ||
+        signal.capability === "UNAVAILABLE" ||
+        (!signal.observedSSID && !signal.observedBSSID && !signal.observedIP)
     ) {
 
         return {
@@ -49,10 +52,10 @@ export async function verifyNetwork() {
             metadata: {
 
                 platform:
-                    "WEB",
+                    signal?.platform || "WEB",
 
                 capability:
-                    "NETWORK_SIGNAL_NOT_EXPOSED"
+                    signal?.capability || "NETWORK_SIGNAL_NOT_EXPOSED"
 
             }
 
@@ -78,4 +81,4 @@ export async function verifyNetwork() {
 
     });
 
-}
+}

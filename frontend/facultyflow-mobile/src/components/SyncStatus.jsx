@@ -16,16 +16,18 @@ export default function SyncStatus() {
         failedCount,
         isOnline,
         isSyncing,
+        isCheckedIn,
+        attendance,
         triggerSync,
         retryFailedSync
     } = useAttendance();
 
     // Determine visual style and badges
-    let statusLabel = "Synced";
-    let statusDescription = "All attendance events are synchronized with the server.";
-    let badgeColor = "#16A34A";
-    let badgeBg = "#DCFCE7";
-    let iconName = "cloud-done-outline";
+    let statusLabel = "Queue Empty";
+    let statusDescription = "Offline queue is clear. Ready to record today's attendance.";
+    let badgeColor = "#64748B";
+    let badgeBg = "#F1F5F9";
+    let iconName = "cloud-outline";
 
     if (!isOnline) {
         statusLabel = "Offline Mode";
@@ -47,12 +49,25 @@ export default function SyncStatus() {
         badgeColor = "#DC2626";
         badgeBg = "#FEF2F2";
         iconName = "alert-circle-outline";
-    } else if (pendingCount > 0 || syncStatus === "PENDING_SYNC") {
-        statusLabel = `${pendingCount} Pending`;
-        statusDescription = "Locally queued events waiting for server confirmation.";
+    } else if (pendingCount > 0 || syncStatus === "PENDING_SYNC" || attendance?.syncStatus === "PENDING_SYNC") {
+        statusLabel = `${pendingCount || 1} Pending Sync`;
+        statusDescription = "Check-in stored locally on device. Waiting for server confirmation.";
         badgeColor = "#D97706";
         badgeBg = "#FEF3C7";
         iconName = "cloud-upload-outline";
+    } else if (isCheckedIn) {
+        statusLabel = "Synced";
+        statusDescription = "Today's attendance record is verified and confirmed on the server.";
+        badgeColor = "#16A34A";
+        badgeBg = "#DCFCE7";
+        iconName = "cloud-done-outline";
+    } else {
+        // Not checked in yet, queue is clean
+        statusLabel = "Queue Ready";
+        statusDescription = "Offline queue is idle. No pending records waiting to upload.";
+        badgeColor = "#64748B";
+        badgeBg = "#F1F5F9";
+        iconName = "cloud-done-outline";
     }
 
     return (
