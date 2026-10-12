@@ -9,7 +9,7 @@ function LocationTable({
     onDelete
 }) {
 
-    if (locations.length === 0) {
+    if (!Array.isArray(locations) || locations.length === 0) {
 
         return (
             <div className="location-empty-state">
@@ -70,7 +70,19 @@ function LocationTable({
 
                     {locations.map(
                         location => {
+                            if (!location) return null;
                             const id = location.locationId || location.id || location._id;
+                            const formattedLat = typeof location.latitude === "number"
+                                ? location.latitude.toFixed(6)
+                                : !isNaN(Number(location.latitude)) && location.latitude !== "" && location.latitude !== null && location.latitude !== undefined
+                                    ? Number(location.latitude).toFixed(6)
+                                    : (location.latitude || "-");
+                            const formattedLng = typeof location.longitude === "number"
+                                ? location.longitude.toFixed(6)
+                                : !isNaN(Number(location.longitude)) && location.longitude !== "" && location.longitude !== null && location.longitude !== undefined
+                                    ? Number(location.longitude).toFixed(6)
+                                    : (location.longitude || "-");
+
                             return (
                                 <tr
                                     key={id}
@@ -82,7 +94,7 @@ function LocationTable({
                                             </div>
                                             <div>
                                                 <strong>
-                                                    {location.name}
+                                                    {location.name || "Unnamed Campus"}
                                                 </strong>
                                                 <span>
                                                     {id}
@@ -92,20 +104,15 @@ function LocationTable({
                                     </td>
 
                                     <td>
-                                        {Number(
-                                            location.latitude
-                                        ).toFixed(6)}
+                                        {formattedLat}
                                     </td>
 
                                     <td>
-                                        {Number(
-                                            location.longitude
-                                        ).toFixed(6)}
+                                        {formattedLng}
                                     </td>
 
                                     <td>
-                                        {location.radiusMeters}
-                                        {" m"}
+                                        {location.radiusMeters ? `${location.radiusMeters} m` : "-"}
                                     </td>
 
                                     <td>

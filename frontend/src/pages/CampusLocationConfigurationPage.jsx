@@ -52,6 +52,11 @@ function CampusLocationConfigurationPage() {
     ] = useState(true);
 
     const [
+        saving,
+        setSaving
+    ] = useState(false);
+
+    const [
         location,
         setLocation
     ] = useState(
@@ -86,7 +91,7 @@ function CampusLocationConfigurationPage() {
             const list = Array.isArray(response)
                 ? response
                 : (response?.locations || []);
-            setLocations(list);
+            setLocations(Array.isArray(list) ? list : []);
         } catch (err) {
             console.error("Failed to load campus locations:", err);
             setMessage(
@@ -103,10 +108,9 @@ function CampusLocationConfigurationPage() {
     }, [accessToken]);
 
 
-    const activeLocations =
-        locations.filter(
-            item => item.active
-        ).length;
+    const activeLocations = (Array.isArray(locations) ? locations : []).filter(
+        item => item && item.active
+    ).length;
 
 
     function handleChange(

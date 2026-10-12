@@ -40,15 +40,28 @@ export async function getFacultyById(identifier) {
             });
 
             if (!faculty) {
-                faculty = await Faculty.create({
-                    facultyId: user.facultyId || user.userId,
-                    userId: user.userId,
-                    employeeCode: user.employeeCode || `EMP-${user.facultyId || user.userId}`,
-                    name: user.name,
-                    department: user.department || "General",
-                    designation: user.designation || "Faculty",
-                    status: user.status || "active"
-                });
+                try {
+                    faculty = await Faculty.create({
+                        facultyId: user.facultyId || user.userId,
+                        userId: user.userId,
+                        employeeCode: user.employeeCode || `EMP-${user.facultyId || user.userId}`,
+                        name: user.name,
+                        department: user.department || "General",
+                        designation: user.designation || "Faculty",
+                        status: user.status || "active"
+                    });
+                } catch (createErr) {
+                    if (createErr.code === 11000) {
+                        faculty = await Faculty.findOne({
+                            $or: [
+                                { facultyId: user.facultyId || user.userId },
+                                { userId: user.userId }
+                            ]
+                        });
+                    } else {
+                        throw createErr;
+                    }
+                }
             }
         }
     }

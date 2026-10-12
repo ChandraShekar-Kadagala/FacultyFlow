@@ -187,180 +187,150 @@ function FacultyProfilePage() {
     }
 
 
+    const displayName = faculty.name || user?.name || "Faculty Member";
+    const facultyIdVal = faculty.facultyId || user?.facultyId || user?.userId || "F101";
+    const userIdVal = faculty.userId || user?.userId || "U101";
+    const empCode = faculty.employeeCode || user?.employeeCode || `EMP-${facultyIdVal}`;
+    const department = faculty.department || user?.department || "Academic Department";
+    const designation = faculty.designation || user?.designation || "Assistant Professor";
+    const email = user?.email || faculty.email || "faculty@facultyflow.com";
+    const status = faculty.status || user?.status || "active";
+
+    const formattedCreatedAt = faculty.createdAt
+        ? new Date(faculty.createdAt).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric"
+        })
+        : "Institutional Baseline";
+
     return (
-
         <section className="admin-dashboard">
-
+            {/* PAGE HEADER */}
             <div className="page-header dashboard-header">
-
                 <div>
-
                     <span className="eyebrow">
                         FACULTY PROFILE
                     </span>
-
                     <h1>
-                        {faculty.name}
+                        Faculty Profile
                     </h1>
-
                     <p>
-                        Faculty ID: {faculty.facultyId}
+                        Institutional academic appointment, credentials, and verification profile.
                     </p>
-
                 </div>
-
 
                 <span
                     className={
                         `status-badge ${
-                            faculty.status === "active"
+                            status === "active"
                                 ? "present"
                                 : "pending"
                         }`
                     }
                 >
-                    {faculty.status}
+                    ● {status.toUpperCase()}
                 </span>
-
             </div>
 
-
-            <section className="dashboard-card">
-
-                <div className="card-header">
-
-                    <div>
-
-                        <span className="card-label">
-                            PROFILE INFORMATION
-                        </span>
-
-                        <h2>
-                            Faculty Details
-                        </h2>
-
-                    </div>
-
+            {/* IDENTITY HERO SECTION */}
+            <div className="profile-hero-card">
+                <div className="profile-hero-avatar">
+                    {displayName.charAt(0).toUpperCase()}
                 </div>
+                <div className="profile-hero-info">
+                    <h2>{displayName}</h2>
+                    <p className="profile-hero-subtitle">
+                        {designation} • {department}
+                    </p>
+                    <span className="profile-hero-email">
+                        ✉ {email}
+                    </span>
+                </div>
+            </div>
 
+            {/* DETAILS GRID CARD */}
+            <section className="dashboard-card">
+                <div className="card-header">
+                    <div>
+                        <span className="card-label">
+                            INSTITUTIONAL RECORD
+                        </span>
+                        <h2>
+                            Faculty Employment Details
+                        </h2>
+                    </div>
+                </div>
 
                 <div className="profile-details-grid">
-
                     <div className="profile-detail">
-
-                        <span>
-                            Faculty ID
-                        </span>
-
-                        <strong>
-                            {faculty.facultyId}
-                        </strong>
-
+                        <span>Faculty ID</span>
+                        <strong>{facultyIdVal}</strong>
                     </div>
 
-
                     <div className="profile-detail">
-
-                        <span>
-                            User ID
-                        </span>
-
-                        <strong>
-                            {faculty.userId}
-                        </strong>
-
+                        <span>User Account ID</span>
+                        <strong>{userIdVal}</strong>
                     </div>
 
-
                     <div className="profile-detail">
-
-                        <span>
-                            Employee Code
-                        </span>
-
-                        <strong>
-                            {faculty.employeeCode}
-                        </strong>
-
+                        <span>Employee Code</span>
+                        <strong>{empCode}</strong>
                     </div>
 
-
                     <div className="profile-detail">
-
-                        <span>
-                            Name
-                        </span>
-
-                        <strong>
-                            {faculty.name}
-                        </strong>
-
+                        <span>Full Name</span>
+                        <strong>{displayName}</strong>
                     </div>
 
-
                     <div className="profile-detail">
-
-                        <span>
-                            Department
-                        </span>
-
-                        <strong>
-                            {faculty.department}
-                        </strong>
-
+                        <span>Department</span>
+                        <strong>{department}</strong>
                     </div>
 
-
                     <div className="profile-detail">
-
-                        <span>
-                            Designation
-                        </span>
-
-                        <strong>
-                            {faculty.designation}
-                        </strong>
-
+                        <span>Academic Rank</span>
+                        <strong>{designation}</strong>
                     </div>
 
-
                     <div className="profile-detail">
-
-                        <span>
-                            Status
-                        </span>
-
-                        <strong>
-                            {faculty.status}
-                        </strong>
-
+                        <span>Institutional Email</span>
+                        <strong>{email}</strong>
                     </div>
 
-
                     <div className="profile-detail">
-
-                        <span>
-                            Created At
-                        </span>
-
+                        <span>Account Status</span>
                         <strong>
-                            {faculty.createdAt
-                                ? new Date(
-                                    faculty.createdAt
-                                ).toLocaleString()
-                                : "-"
-                            }
+                            {status === "active" ? "Active Account" : "Inactive"}
                         </strong>
-
                     </div>
 
+                    <div className="profile-detail">
+                        <span>Appointment Date</span>
+                        <strong>{formattedCreatedAt}</strong>
+                    </div>
+
+                    <div className="profile-detail">
+                        <span>Attendance Verification</span>
+                        <strong>Multi-Signal Geofence Authorized</strong>
+                    </div>
                 </div>
-
             </section>
 
+            {/* INSTITUTIONAL ADVISORY NOTE */}
+            <div className="profile-note">
+                <div className="note-icon">
+                    ℹ
+                </div>
+                <div>
+                    <strong>Institutional Record Governance</strong>
+                    <p>
+                        Profile information is authoritative and managed by Academic Affairs. If you require changes to your departmental affiliation, designation, or employee code, please contact your university administrative office.
+                    </p>
+                </div>
+            </div>
         </section>
     );
 }
-
 
 export default FacultyProfilePage;
