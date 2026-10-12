@@ -119,3 +119,22 @@ export async function checkOutAttendance({
     );
 
 }
+
+
+// ============================================================
+// DYNAMIC SERVER CONFIGURATION
+// ============================================================
+
+export async function getActiveAttendancePolicy(accessToken) {
+    return apiRequest("/attendance/policy", {
+        method: "GET",
+        accessToken
+    });
+}
+
+export async function getActiveCampusLocations(accessToken) {
+    return apiRequest("/attendance/locations", {
+        method: "GET",
+        accessToken
+    });
+}

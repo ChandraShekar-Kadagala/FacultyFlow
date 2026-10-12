@@ -29,6 +29,8 @@ import policyRoutes
     from "./routes/policyRoutes.js";
 import locationRoutes
     from "./routes/locationRoutes.js";
+import networkRoutes
+    from "./routes/networkRoutes.js";
     import syncRoutes
     from "./routes/syncRoutes.js";
 import { timingMiddleware } from "./middleware/timingMiddleware.js";
@@ -146,6 +148,10 @@ app.use(
 app.use(
     "/api/admin/locations",
     locationRoutes
+);
+app.use(
+    "/api/admin/networks",
+    networkRoutes
 );
 app.use(
     "/api/sync",

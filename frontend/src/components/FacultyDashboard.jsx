@@ -4,694 +4,134 @@ import {
     useMemo,
     useState
 } from "react";
+import { useNavigate } from "react-router-dom";
 
-
-import {
-    useNavigate
-} from "react-router-dom";
-
-
-import useAuth
-    from "../hooks/useAuth";
-
-
-import useDeviceLocation
-    from "../hooks/useDeviceLocation";
-
-
+import useAuth from "../hooks/useAuth";
+import useDeviceLocation from "../hooks/useDeviceLocation";
 import {
     getTodayAttendance,
     checkInAttendance,
     checkOutAttendance
 } from "../services/attendance/attendanceService";
-
-
-import VerificationStatusCard
-    from "../components/verification/VerificationStatusCard";
-
-
-// ============================================================
-// FORMAT SERVER TIME
-// ============================================================
+import VerificationStatusCard from "../components/verification/VerificationStatusCard";
 
 function formatTime(value) {
-
-    if (!value) {
-        return "--:--";
-    }
-
-
-    const date =
-        new Date(value);
-
-
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-
-        return "--:--";
-
-    }
-
-
-    return date.toLocaleTimeString(
-        "en-IN",
-        {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit"
-        }
-    );
-
+    if (!value) return "--:--";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "--:--";
+    return date.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+    });
 }
 
+function formatDate(value) {
+    const d = value ? new Date(value) : new Date();
+    return d.toLocaleDateString("en-IN", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+    });
+}
 
-// ============================================================
-// ATTENDANCE ERROR MESSAGE
-// ============================================================
-
-function getAttendanceErrorMessage(
-    error,
-    fallbackMessage
-) {
-
-    switch (
-        error?.code
-    ) {
-
+function getAttendanceErrorMessage(error, fallbackMessage) {
+    switch (error?.code) {
         case "ATTENDANCE_ALREADY_EXISTS":
-
-            return (
-                "You have already checked in today."
-            );
-
-
+            return "You have already recorded check-in for today.";
         case "CHECK_IN_REQUIRED":
-
-            return (
-                "Please check in before checking out."
-            );
-
-
+            return "Please check in before attempting to check out.";
         case "CHECK_OUT_ALREADY_COMPLETED":
-
-            return (
-                "You have already checked out today."
-            );
-
-
+            return "You have already checked out today.";
         case "FACULTY_INACTIVE":
-
-            return (
-                "Your faculty account is inactive."
-            );
-
-
+            return "Your faculty account is currently inactive. Contact university admin.";
         case "FACULTY_NOT_FOUND":
-
-            return (
-                "Faculty profile was not found."
-            );
-
-
+            return "Faculty profile was not found on the server.";
         case "FACULTY_PROFILE_UNAVAILABLE":
-
-            return (
-                "Your faculty profile is unavailable."
-            );
-
-
+            return "Your faculty profile is temporarily unavailable.";
         case "ATTENDANCE_VERIFICATION_FAILED":
-
-            return (
-                error?.message ||
-                "Attendance verification failed."
-            );
-
-
-        case "ATTENDANCE_VERIFICATION_INCOMPLETE":
-
-            return (
-                error?.message ||
-                "Attendance verification is incomplete."
-            );
-
-
+            return error?.message || "Attendance verification failed.";
         case "ATTENDANCE_OUTSIDE_ALLOWED_TIME":
-
-            return (
-                error?.message ||
-                "Attendance cannot be recorded at this time."
-            );
-
-
+            return error?.message || "Attendance cannot be recorded outside the allowed policy window.";
         case "NETWORK_ERROR":
-
-            return (
-                "Unable to connect to the FacultyFlow server."
-            );
-
-
-        case "VALIDATION_ERROR":
-
-            return (
-                "The attendance request is invalid."
-            );
-
-
-        case "INTERNAL_SERVER_ERROR":
-
-            return (
-                "Something went wrong on the server."
-            );
-
-
+            return "Unable to connect to the FacultyFlow server. Check your connection.";
         default:
-
-            return (
-                error?.message ||
-                fallbackMessage
-            );
-
+            return error?.message || fallbackMessage;
     }
-
 }
-
-
-// ============================================================
-// FACULTY DASHBOARD
-// ============================================================
 
 function FacultyDashboard() {
-
-    const navigate =
-        useNavigate();
-
+    const navigate = useNavigate();
+    const { user, accessToken } = useAuth();
 
     const {
-        user,
-        accessToken
-    } = useAuth();
-
-
-    // ========================================================
-    // DEVICE LOCATION
-    // ========================================================
-
-    const {
-        loading:
-            locationLoading,
-
-        error:
-            locationError,
-
-        supported:
-            locationSupported,
-
+        loading: locationLoading,
+        error: locationError,
+        supported: locationSupported,
         captureLocation
-
     } = useDeviceLocation();
 
-
-    // ========================================================
-    // ATTENDANCE STATE
-    // ========================================================
-
-    const [
-        attendance,
-        setAttendance
-    ] = useState(null);
-
-
-    const [
-        attendanceLoading,
-        setAttendanceLoading
-    ] = useState(true);
-
-
-    const [
-        attendanceError,
-        setAttendanceError
-    ] = useState("");
-
-
-    // ========================================================
-    // ACTION STATE
-    // ========================================================
-
-    const [
-        actionLoading,
-        setActionLoading
-    ] = useState(false);
-
-
-    const [
-        actionMessage,
-        setActionMessage
-    ] = useState("");
-
-
-    // ========================================================
-    // VERIFICATION STATE
-    // ========================================================
-
-    const [
-        verification,
-        setVerification
-    ] = useState(null);
-
-
-    // ========================================================
-    // FACULTY INFORMATION
-    // ========================================================
-
-    const facultyId =
-        user?.facultyId ||
-        "--";
-
-
-    const facultyName =
-        user?.name ||
-        "Faculty";
-
-
-    const facultyDepartment =
-        user?.department ||
-        "--";
-
-
-    const facultyDesignation =
-        user?.designation ||
-        "--";
-
-
-    // ========================================================
-    // LOAD TODAY'S ATTENDANCE
-    // ========================================================
-
-    const loadTodayAttendance =
-        useCallback(
-            async () => {
-
-                if (!accessToken) {
-
-                    setAttendance(null);
-
-                    setVerification(null);
-
-                    setAttendanceLoading(false);
-
-                    setAttendanceError(
-                        "Authentication session is missing."
-                    );
-
-                    return;
-
-                }
-
-
-                setAttendanceLoading(true);
-
-                setAttendanceError("");
-
-
-                try {
-
-                    const response =
-                        await getTodayAttendance(
-                            accessToken
-                        );
-
-
-                    const todayAttendance =
-                        response?.attendance ||
-                        null;
-
-
-                    setAttendance(
-                        todayAttendance
-                    );
-
-
-                    // ------------------------------------------------
-                    // Existing attendance records may contain the
-                    // overall verification status.
-                    //
-                    // Detailed provider verification is populated
-                    // after a new check-in/check-out response.
-                    // ------------------------------------------------
-
-                    if (
-                        !todayAttendance
-                    ) {
-
-                        setVerification(null);
-
-                    } else if (response?.verification) {
-                        setVerification(response.verification);
-                    }
-
-                } catch (error) {
-
-                    console.error(
-                        "Failed to load today's attendance:",
-                        error
-                    );
-
-
-                    setAttendance(null);
-
-                    setVerification(null);
-
-
-                    setAttendanceError(
-                        getAttendanceErrorMessage(
-                            error,
-                            "Failed to load today's attendance."
-                        )
-                    );
-
-                } finally {
-
-                    setAttendanceLoading(false);
-
-                }
-
-            },
-            [
-                accessToken
-            ]
-        );
-
-
-    // ========================================================
-    // INITIAL LOAD
-    // ========================================================
-
-    useEffect(
-        () => {
-
-            loadTodayAttendance();
-
-        },
-        [
-            loadTodayAttendance
-        ]
-    );
-
-
-    // ========================================================
-    // CHECK-IN
-    // ========================================================
-
-    const handleCheckIn =
-        async () => {
-
-            if (
-                !accessToken ||
-                actionLoading
-            ) {
-
-                return;
-
+    const [attendance, setAttendance] = useState(null);
+    const [attendanceLoading, setAttendanceLoading] = useState(true);
+    const [attendanceError, setAttendanceError] = useState("");
+
+    const [actionLoading, setActionLoading] = useState(false);
+    const [actionType, setActionType] = useState(null); // 'check-in' | 'check-out' | null
+    const [actionMessage, setActionMessage] = useState("");
+
+    const [verification, setVerification] = useState(null);
+
+    const facultyId = user?.facultyId || user?.userId || "--";
+    const facultyName = user?.name || "Faculty Member";
+    const facultyDepartment = user?.department || "Academic Department";
+    const facultyDesignation = user?.designation || "Faculty";
+
+    const loadTodayAttendance = useCallback(async () => {
+        if (!accessToken) {
+            setAttendance(null);
+            setVerification(null);
+            setAttendanceLoading(false);
+            setAttendanceError("Authentication session is missing.");
+            return;
+        }
+
+        setAttendanceLoading(true);
+        setAttendanceError("");
+
+        try {
+            const response = await getTodayAttendance(accessToken);
+            const todayRecord = response?.attendance || null;
+            setAttendance(todayRecord);
+
+            if (response?.verification) {
+                setVerification(response.verification);
+            } else if (!todayRecord) {
+                setVerification(null);
             }
-
-
-            setActionMessage("");
-
-            setAttendanceError("");
-
-            setActionLoading(true);
-
-
-            try {
-
-                // ------------------------------------------------
-                // CAPTURE REAL LOCATION
-                // ------------------------------------------------
-
-                const location =
-                    await captureLocation();
-
-
-                // ------------------------------------------------
-                // SEND LOCATION TO BACKEND
-                // ------------------------------------------------
-
-                const response =
-                    await checkInAttendance(
-                        location,
-                        accessToken
-                    );
-
-
-                // ------------------------------------------------
-                // STORE REAL VERIFICATION RESULT
-                // ------------------------------------------------
-
-                setVerification(
-                    response?.verification ||
-                    null
-                );
-
-
-                setActionMessage(
-                    "Check-in request completed successfully."
-                );
-
-
-                // ------------------------------------------------
-                // REFRESH SERVER STATE
-                // ------------------------------------------------
-
-                await loadTodayAttendance();
-
-            } catch (error) {
-
-                console.error(
-                    "Check-in failed:",
-                    error
-                );
-
-
-                // ------------------------------------------------
-                // Backend may return verification even when
-                // attendance was rejected.
-                // ------------------------------------------------
-
-                if (
-                    error?.data?.verification
-                ) {
-
-                    setVerification(
-                        error.data.verification
-                    );
-
-                } else if (
-                    error?.verification
-                ) {
-
-                    setVerification(
-                        error.verification
-                    );
-
-                }
-
-
-                setAttendanceError(
-                    getAttendanceErrorMessage(
-                        error,
-                        "Check-in failed."
-                    )
-                );
-
-            } finally {
-
-                setActionLoading(false);
-
-            }
-
-        };
-
-
-    // ========================================================
-    // CHECK-OUT
-    // ========================================================
-
-    const handleCheckOut =
-        async () => {
-
-            if (
-                !accessToken ||
-                actionLoading
-            ) {
-
-                return;
-
-            }
-
-
-            setActionMessage("");
-
-            setAttendanceError("");
-
-            setActionLoading(true);
-
-
-            try {
-
-                // ------------------------------------------------
-                // CAPTURE FRESH REAL LOCATION
-                // ------------------------------------------------
-
-                const location =
-                    await captureLocation();
-
-
-                // ------------------------------------------------
-                // SEND LOCATION TO BACKEND
-                // ------------------------------------------------
-
-                const response =
-                    await checkOutAttendance(
-                        location,
-                        accessToken
-                    );
-
-
-                // ------------------------------------------------
-                // STORE REAL VERIFICATION RESULT
-                // ------------------------------------------------
-
-                setVerification(
-                    response?.verification ||
-                    null
-                );
-
-
-                setActionMessage(
-                    "Check-out request completed successfully."
-                );
-
-
-                // ------------------------------------------------
-                // REFRESH SERVER STATE
-                // ------------------------------------------------
-
-                await loadTodayAttendance();
-
-            } catch (error) {
-
-                console.error(
-                    "Check-out failed:",
-                    error
-                );
-
-
-                if (
-                    error?.data?.verification
-                ) {
-
-                    setVerification(
-                        error.data.verification
-                    );
-
-                } else if (
-                    error?.verification
-                ) {
-
-                    setVerification(
-                        error.verification
-                    );
-
-                }
-
-
-                setAttendanceError(
-                    getAttendanceErrorMessage(
-                        error,
-                        "Check-out failed."
-                    )
-                );
-
-            } finally {
-
-                setActionLoading(false);
-
-            }
-
-        };
-
-
-    // ========================================================
-    // ATTENDANCE STATUS
-    // ========================================================
-
-    const attendanceStatus =
-        useMemo(
-            () => {
-
-                if (!attendance) {
-
-                    return "Not Checked In";
-
-                }
-
-
-                if (
-                    attendance.checkOutTime
-                ) {
-
-                    return "Checked Out";
-
-                }
-
-
-                if (
-                    attendance.checkInTime
-                ) {
-
-                    return (
-                        attendance.status ||
-                        "Present"
-                    );
-
-                }
-
-
-                return "Not Checked In";
-
-            },
-            [
-                attendance
-            ]
-        );
-
-
-    // ========================================================
-    // OVERALL VERIFICATION STATUS
-    // ========================================================
-
-    const verificationStatus =
-        verification?.result ||
-        attendance?.verificationStatus ||
-        (attendance ? "Verified" : "Awaiting Check-In");
-
-
-    // ========================================================
-    // SYNC STATUS
-    // ========================================================
-
-    const syncStatus =
-        attendance?.syncStatus ||
-        (attendance ? "SYNCED" : "Awaiting Check-In");
-
-
-    // ========================================================
-    // ATTENDANCE ACTION RULES
-    // ========================================================
+        } catch (error) {
+            console.error("Failed to load today's attendance:", error);
+            setAttendance(null);
+            setVerification(null);
+            setAttendanceError(
+                getAttendanceErrorMessage(error, "Failed to load today's attendance.")
+            );
+        } finally {
+            setAttendanceLoading(false);
+        }
+    }, [accessToken]);
+
+    useEffect(() => {
+        loadTodayAttendance();
+    }, [loadTodayAttendance]);
+
+    // Attendance state machine computation
+    const attendanceStatus = useMemo(() => {
+        if (!attendance) return "Not Checked In";
+        if (attendance.checkOutTime) return "Checked Out";
+        if (attendance.checkInTime) return attendance.status || "Present";
+        return "Not Checked In";
+    }, [attendance]);
 
     const canCheckIn =
         Boolean(accessToken) &&
@@ -700,945 +140,404 @@ function FacultyDashboard() {
         !attendance &&
         !attendanceError;
 
-
     const canCheckOut =
         Boolean(accessToken) &&
         !attendanceLoading &&
         !actionLoading &&
-        Boolean(
-            attendance?.checkInTime
-        ) &&
+        Boolean(attendance?.checkInTime) &&
         !attendance?.checkOutTime &&
         !attendanceError;
 
+    const isAttendanceComplete = Boolean(attendance?.checkInTime && attendance?.checkOutTime);
 
-    // ========================================================
-    // LOCATION STATUS
-    // ========================================================
+    // Record Attendance Action Handler
+    async function handleCheckIn() {
+        if (!canCheckIn) return;
 
-    const locationStatus =
-        !locationSupported
-            ? "Unsupported"
-            : locationError
-                ? "Unavailable"
-                : "Ready";
+        setActionMessage("");
+        setAttendanceError("");
+        setActionLoading(true);
+        setActionType("check-in");
 
+        try {
+            const location = await captureLocation();
+            const response = await checkInAttendance(location, accessToken);
 
-    // ========================================================
-    // RENDER
-    // ========================================================
+            setVerification(response?.verification || null);
+            setActionMessage("Check-in recorded and verified successfully.");
+            await loadTodayAttendance();
+        } catch (error) {
+            console.error("Check-in error:", error);
+            if (error?.data?.verification) {
+                setVerification(error.data.verification);
+            } else if (error?.verification) {
+                setVerification(error.verification);
+            }
+            setAttendanceError(
+                getAttendanceErrorMessage(error, "Check-in failed. Please try again.")
+            );
+        } finally {
+            setActionLoading(false);
+            setActionType(null);
+        }
+    }
+
+    async function handleCheckOut() {
+        if (!canCheckOut) return;
+
+        setActionMessage("");
+        setAttendanceError("");
+        setActionLoading(true);
+        setActionType("check-out");
+
+        try {
+            const location = await captureLocation();
+            const response = await checkOutAttendance(location, accessToken);
+
+            setVerification(response?.verification || null);
+            setActionMessage("Check-out recorded successfully.");
+            await loadTodayAttendance();
+        } catch (error) {
+            console.error("Check-out error:", error);
+            if (error?.data?.verification) {
+                setVerification(error.data.verification);
+            } else if (error?.verification) {
+                setVerification(error.verification);
+            }
+            setAttendanceError(
+                getAttendanceErrorMessage(error, "Check-out failed. Please try again.")
+            );
+        } finally {
+            setActionLoading(false);
+            setActionType(null);
+        }
+    }
+
+    const verificationBadgeText = !attendance
+        ? "Awaiting Check-In"
+        : (verification?.result || attendance?.verificationStatus || "Verified");
 
     return (
-
         <section className="faculty-dashboard">
-
-
-            {/* ==================================================
-                PAGE HEADER
-            ================================================== */}
-
-            <div className="page-header dashboard-header">
-
-                <div>
-
-                    <span className="eyebrow">
-                        FACULTY WORKSPACE
-                    </span>
-
-
-                    <h1>
-                        Faculty Dashboard
-                    </h1>
-
-
-                    <p>
-                        Manage today's attendance,
-                        verification and history.
+            {/* 1. DASHBOARD HEADING */}
+            <header className="faculty-dashboard-header">
+                <div className="header-faculty-info">
+                    <span className="eyebrow">FACULTY WORKSPACE</span>
+                    <h1>Faculty Attendance Dashboard</h1>
+                    <p className="faculty-subtitle">
+                        Welcome back, <strong>{facultyName}</strong> &bull; {facultyDepartment} ({facultyDesignation}) &bull; ID: <code>{facultyId}</code>
                     </p>
-
                 </div>
 
-
-                <button
-                    className="btn-secondary"
-                    type="button"
-                    onClick={() =>
-                        navigate(
-                            `/profile`
-                        )
-                    }
-                >
-
-                    <span>
-                        ◉
+                <div className="header-meta-actions">
+                    <div className="header-date-badge">
+                        📅 {formatDate(attendance?.date)}
+                    </div>
+                    <span className={`status-pill ${
+                        attendanceStatus === "Present"
+                            ? "status-present"
+                            : attendanceStatus === "Checked Out"
+                                ? "status-checkout"
+                                : "status-pending"
+                    }`}>
+                        {attendanceLoading ? "Loading..." : attendanceStatus}
                     </span>
-
-                    View Faculty Details
-
-                </button>
-
-            </div>
-
-
-            {/* ==================================================
-                SUCCESS MESSAGE
-            ================================================== */}
-
-            {actionMessage && (
-
-                <div
-                    className="dashboard-message success"
-                    role="status"
-                >
-
-                    {actionMessage}
-
+                    <button
+                        type="button"
+                        className="btn-secondary profile-btn"
+                        onClick={() => navigate("/profile")}
+                    >
+                        👤 View Profile
+                    </button>
                 </div>
+            </header>
 
+            {/* ACTION FEEDBACK MESSAGES */}
+            {actionMessage && (
+                <div className="dashboard-alert success" role="status">
+                    ✓ {actionMessage}
+                </div>
             )}
-
-
-            {/* ==================================================
-                ERROR MESSAGE
-            ================================================== */}
 
             {attendanceError && (
-
-                <div
-                    className="dashboard-message error"
-                    role="alert"
-                >
-
-                    <span>
-                        {attendanceError}
-                    </span>
-
-
+                <div className="dashboard-alert error" role="alert">
+                    <div className="alert-content">
+                        <strong>Action Error:</strong> {attendanceError}
+                    </div>
                     <button
                         type="button"
-                        onClick={() =>
-                            loadTodayAttendance()
-                        }
-                        disabled={
-                            attendanceLoading ||
-                            actionLoading
-                        }
+                        className="alert-retry-btn"
+                        onClick={loadTodayAttendance}
+                        disabled={attendanceLoading}
                     >
-
-                        {attendanceLoading
-                            ? "Refreshing..."
-                            : "Retry"}
-
+                        {attendanceLoading ? "Retrying..." : "↻ Retry"}
                     </button>
-
                 </div>
-
             )}
 
-
-            {/* ==================================================
-                SUMMARY CARDS
-            ================================================== */}
-
+            {/* 2. COMPACT ATTENDANCE SUMMARY CARDS */}
             <div className="dashboard-summary-grid">
-
-
-                {/* TODAY STATUS */}
-
-                <article className="summary-card">
-
-                    <div className="summary-icon blue">
-                        ✓
-                    </div>
-
-
+                <div className="summary-card">
+                    <div className="summary-icon blue">📋</div>
                     <div>
-
-                        <span>
-                            Today's Status
-                        </span>
-
-
-                        <strong>
-
-                            {attendanceLoading
-                                ? "Loading..."
-                                : attendanceError
-                                    ? "Unavailable"
-                                    : attendanceStatus}
-
-                        </strong>
-
+                        <span>Today's Status</span>
+                        <strong>{attendanceLoading ? "Loading..." : attendanceStatus}</strong>
                     </div>
+                </div>
 
-                </article>
-
-
-                {/* CHECK-IN */}
-
-                <article className="summary-card">
-
-                    <div className="summary-icon green">
-                        ↗
-                    </div>
-
-
+                <div className="summary-card">
+                    <div className="summary-icon green">↗</div>
                     <div>
-
-                        <span>
-                            Check In
-                        </span>
-
-
-                        <strong>
-
-                            {attendanceLoading
-                                ? "Loading..."
-                                : formatTime(
-                                    attendance?.checkInTime
-                                )}
-
-                        </strong>
-
+                        <span>Check In</span>
+                        <strong>{attendanceLoading ? "..." : formatTime(attendance?.checkInTime)}</strong>
                     </div>
+                </div>
 
-                </article>
-
-
-                {/* CHECK-OUT */}
-
-                <article className="summary-card">
-
-                    <div className="summary-icon purple">
-                        ↘
-                    </div>
-
-
+                <div className="summary-card">
+                    <div className="summary-icon purple">↘</div>
                     <div>
-
-                        <span>
-                            Check Out
-                        </span>
-
-
-                        <strong>
-
-                            {attendanceLoading
-                                ? "Loading..."
-                                : formatTime(
-                                    attendance?.checkOutTime
-                                )}
-
-                        </strong>
-
+                        <span>Check Out</span>
+                        <strong>{attendanceLoading ? "..." : formatTime(attendance?.checkOutTime)}</strong>
                     </div>
+                </div>
 
-                </article>
-
-
-                {/* VERIFICATION */}
-
-                <article className="summary-card">
-
-                    <div className="summary-icon amber">
-                        ✓
-                    </div>
-
-
+                <div className="summary-card">
+                    <div className="summary-icon amber">🛡️</div>
                     <div>
-
-                        <span>
-                            Verification
-                        </span>
-
-
-                        <strong>
-                            {attendanceLoading
-                                ? "Loading..."
-                                : verificationStatus}
-                        </strong>
-
+                        <span>Verification</span>
+                        <strong>{attendanceLoading ? "..." : verificationBadgeText}</strong>
                     </div>
-
-                </article>
-
+                </div>
             </div>
 
-
-            {/* ==================================================
-                TODAY'S ATTENDANCE
-            ================================================== */}
-
-            <section className="dashboard-card">
-
+            {/* 3. PROMINENT RECORD ATTENDANCE CARD */}
+            <section className="dashboard-card record-attendance-card">
                 <div className="card-header">
-
                     <div>
-
-                        <span className="card-label">
-                            TODAY
-                        </span>
-
-
-                        <h2>
-                            Attendance Status
-                        </h2>
-
-
-                        <p>
-                            Current attendance state for{" "}
-                            {facultyName}.
-                        </p>
-
+                        <span className="card-label">DAILY ATTENDANCE</span>
+                        <h2>Record Attendance</h2>
+                        <p>Authoritative server-timestamped check-in and check-out with multi-factor verification.</p>
                     </div>
 
-
-                    <span
-                        className={`status-badge ${
-                            attendanceStatus ===
-                                "Present" ||
-                            attendanceStatus ===
-                                "Checked Out"
-                                ? "present"
-                                : "pending"
-                        }`}
-                    >
-
-                        {attendanceLoading
-                            ? "Loading..."
-                            : attendanceError
-                                ? "Unavailable"
-                                : attendanceStatus}
-
-                    </span>
-
+                    <div className="location-readiness-pill">
+                        <span className={`readiness-dot ${locationSupported && !locationError ? "dot-ready" : "dot-warning"}`} />
+                        <span>
+                            {locationLoading
+                                ? "Acquiring GPS..."
+                                : locationError
+                                    ? "GPS Unavailable"
+                                    : locationSupported
+                                        ? "GPS Ready"
+                                        : "Browser GPS Unsupported"}
+                        </span>
+                    </div>
                 </div>
 
-
-                <div className="today-details-grid">
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Faculty ID
-                        </span>
-
-                        <strong>
-                            {facultyId}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Date
-                        </span>
-
-                        <strong>
-                            {attendance?.date ||
-                                new Date().toISOString().slice(0, 10)}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Check In
-                        </span>
-
-                        <strong>
-                            {formatTime(
-                                attendance?.checkInTime
-                            )}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Check Out
-                        </span>
-
-                        <strong>
-                            {formatTime(
-                                attendance?.checkOutTime
-                            )}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Verification
-                        </span>
-
-                        <strong>
-                            {verificationStatus}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Sync Status
-                        </span>
-
-                        <strong>
-                            {syncStatus}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Attendance ID
-                        </span>
-
-                        <strong>
-                            {attendance?.attendanceId ||
-                                (attendanceLoading ? "Loading..." : "Generated at check-in")}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Source
-                        </span>
-
-                        <strong>
-                            {attendance?.source ||
-                                "Web Application"}
-                        </strong>
-
-                    </div>
-
-                </div>
-
-            </section>
-
-
-            {/* ==================================================
-                ATTENDANCE ACTION
-            ================================================== */}
-
-            <section className="dashboard-card">
-
-                <div className="card-header">
-
-                    <div>
-
-                        <span className="card-label">
-                            ATTENDANCE ACTION
-                        </span>
-
-
-                        <h2>
-                            Record Attendance
-                        </h2>
-
-
-                        <p>
-                            Check-in and check-out are
-                            processed by the FacultyFlow
-                            server.
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                <div className="attendance-action-content">
-
-
-                    <div>
-
-                        <h3>
-
-                            {canCheckIn
-                                ? "Ready to check in?"
-                                : canCheckOut
-                                    ? "Check out when you finish."
-                                    : attendance?.checkOutTime
-                                        ? "Today's attendance is complete."
-                                        : "Attendance unavailable."}
-
-                        </h3>
-
-
-                        <p>
-
-                            Server time is used as the
-                            authoritative attendance timestamp.
-
-                        </p>
-
-                    </div>
-
-
-                    <div className="attendance-actions">
-
-
-                        <button
-                            className="btn-primary"
-                            type="button"
-                            onClick={
-                                handleCheckIn
-                            }
-                            disabled={
-                                !canCheckIn ||
-                                locationLoading
-                            }
-                        >
-
-                            {actionLoading
-                                ? "Processing..."
-                                : locationLoading
-                                    ? "Detecting Location..."
-                                    : "Check In"}
-
-                        </button>
-
-
-                        <button
-                            className="btn-secondary"
-                            type="button"
-                            onClick={
-                                handleCheckOut
-                            }
-                            disabled={
-                                !canCheckOut ||
-                                locationLoading
-                            }
-                        >
-
-                            {actionLoading
-                                ? "Processing..."
-                                : locationLoading
-                                    ? "Detecting Location..."
-                                    : "Check Out"}
-
-                        </button>
-
-                    </div>
-
-                </div>
-
-
-                <div className="action-help">
-
-                    <strong>
-                        Location:
-                    </strong>{" "}
-
-                    {locationLoading
-                        ? "Detecting your current location..."
-                        : locationError
-                            ? locationError.message
-                            : locationSupported
-                                ? "Ready. Your real device location will be sent with the attendance request."
-                                : "This browser does not provide location services."}
-
-                </div>
-
-
-                {!attendance &&
-                    !attendanceLoading &&
-                    !attendanceError && (
-
-                    <p className="action-help">
-
-                        You have not checked in today.
-                        Use Check In to record your
-                        attendance.
-
-                    </p>
-
-                )}
-
-
-                {attendance?.checkInTime &&
-                    !attendance?.checkOutTime &&
-                    !attendanceLoading &&
-                    !attendanceError && (
-
-                    <p className="action-help">
-
-                        Your check-in has been recorded.
-                        Use Check Out when you finish your day.
-
-                    </p>
-
-                )}
-
-
-                {attendance?.checkOutTime &&
-                    !attendanceLoading && (
-
-                    <p className="action-help">
-
-                        Today's attendance is complete.
-
-                    </p>
-
-                )}
-
-            </section>
-
-
-            {/* ==================================================
-                REAL VERIFICATION STATUS
-            ================================================== */}
-
-            <section className="dashboard-card">
-
-                <div className="card-header">
-
-                    <div>
-
-                        <span className="card-label">
-                            VERIFICATION
-                        </span>
-
-
-                        <h2>
-                            Verification Status
-                        </h2>
-
-
-                        <p>
-                            Results returned by the
-                            FacultyFlow verification engine.
-                        </p>
-
-                    </div>
-
-                </div>
-
-
-                <VerificationStatusCard
-                    verification={
-                        verification
-                    }
-                />
-
-
-                {/* ------------------------------------------------
-                    LOCATION STATUS
-                ------------------------------------------------ */}
-
-                <div className="today-details-grid">
-
-                    <div className="today-detail">
-
-                        <span>
-                            Browser Location
-                        </span>
-
-                        <strong>
-                            {locationStatus}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Location Support
-                        </span>
-
-                        <strong>
-                            {locationSupported
-                                ? "Supported"
-                                : "Unsupported"}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Attendance Verification
-                        </span>
-
-                        <strong>
-                            {verificationStatus}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Sync Status
-                        </span>
-
-                        <strong>
-                            {syncStatus}
-                        </strong>
-
-                    </div>
-
-                </div>
-
-
-                {locationError && (
-
-                    <p className="verification-note">
-
-                        {locationError.message}
-
-                    </p>
-
-                )}
-
-
-                <p className="verification-note">
-
-                    Location is captured when an attendance
-                    action is submitted. The client does not
-                    decide whether the faculty member is inside
-                    the campus. Campus verification is performed
-                    by the backend.
-
-                </p>
-
-            </section>
-
-
-            {/* ==================================================
-                HISTORY
-            ================================================== */}
-
-            <section className="dashboard-card">
-
-                <div className="card-header">
-
-                    <div>
-
-                        <span className="card-label">
-                            HISTORY
-                        </span>
-
-
-                        <h2>
-                            Attendance History
-                        </h2>
-
-
-                        <p>
-                            View your complete attendance
-                            history from the backend.
-                        </p>
-
-                    </div>
-
-
-                    <button
-                        className="btn-secondary"
-                        type="button"
-                        onClick={() =>
-                            navigate(
-                                "/attendance"
-                            )
-                        }
-                    >
-
-                        View All
-
-                    </button>
-
-                </div>
-
-
-                <div className="history-preview">
-
-                    {attendanceLoading ? (
-
-                        <p>
-                            Loading today's attendance...
-                        </p>
-
-                    ) : attendance ? (
-
-                        <div>
-
-                            <p>
-                                Today's attendance record
-                                is available.
-                            </p>
-
-
-                            <p>
-
-                                <strong>
-                                    Attendance ID:
-                                </strong>{" "}
-
-                                {attendance.attendanceId}
-
-                            </p>
-
-
-                            <p>
-
-                                <strong>
-                                    Status:
-                                </strong>{" "}
-
-                                {attendance.status}
-
-                            </p>
-
-
-                            <p>
-
-                                <strong>
-                                    Verification:
-                                </strong>{" "}
-
-                                {verificationStatus}
-
-                            </p>
-
+                <div className="record-attendance-body">
+                    {/* STATE 1: READY TO CHECK IN */}
+                    {canCheckIn && (
+                        <div className="attendance-state-banner state-ready">
+                            <div className="state-content">
+                                <span className="state-badge">READY TO CHECK IN</span>
+                                <h3>You have not checked in yet today</h3>
+                                <p>
+                                    Click <strong>Check In Now</strong> to record your start time. Your device coordinates, browser session, and schedule signals will be evaluated against university campus policies.
+                                </p>
+                            </div>
+                            <div className="state-action-wrap">
+                                <button
+                                    type="button"
+                                    className="btn-primary btn-lg"
+                                    onClick={handleCheckIn}
+                                    disabled={actionLoading || locationLoading}
+                                >
+                                    {actionLoading && actionType === "check-in"
+                                        ? "Checking In..."
+                                        : locationLoading
+                                            ? "Reading GPS..."
+                                            : "↗ Check In Now"}
+                                </button>
+                            </div>
                         </div>
-
-                    ) : (
-
-                        <p>
-                            No attendance record exists
-                            for today.
-                        </p>
-
                     )}
 
-                </div>
+                    {/* STATE 2: CHECK-IN IN PROGRESS */}
+                    {actionLoading && actionType === "check-in" && (
+                        <div className="attendance-state-banner state-progress">
+                            <div className="state-content">
+                                <span className="state-badge">CHECK-IN IN PROGRESS</span>
+                                <h3>Verifying attendance signals...</h3>
+                                <p>Communicating with the authoritative FacultyFlow server and persisting verified records to MongoDB.</p>
+                            </div>
+                        </div>
+                    )}
 
+                    {/* STATE 3: CHECKED IN / READY TO CHECK OUT */}
+                    {canCheckOut && (
+                        <div className="attendance-state-banner state-checked-in">
+                            <div className="state-content">
+                                <span className="state-badge badge-active">CHECKED IN ACTIVE</span>
+                                <h3>Checked In at {formatTime(attendance?.checkInTime)}</h3>
+                                <p>
+                                    Your attendance session is active. When you finish your workday or classes, submit your check-out below to finalize duration.
+                                </p>
+                            </div>
+                            <div className="state-action-wrap">
+                                <button
+                                    type="button"
+                                    className="btn-primary btn-lg btn-checkout"
+                                    onClick={handleCheckOut}
+                                    disabled={actionLoading || locationLoading}
+                                >
+                                    {actionLoading && actionType === "check-out"
+                                        ? "Checking Out..."
+                                        : locationLoading
+                                            ? "Reading GPS..."
+                                            : "↘ Check Out Now"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STATE 4: CHECK-OUT IN PROGRESS */}
+                    {actionLoading && actionType === "check-out" && (
+                        <div className="attendance-state-banner state-progress">
+                            <div className="state-content">
+                                <span className="state-badge">CHECK-OUT IN PROGRESS</span>
+                                <h3>Finalizing attendance session...</h3>
+                                <p>Persisting workday completion and computing duration on the server.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STATE 5: ATTENDANCE COMPLETED */}
+                    {isAttendanceComplete && (
+                        <div className="attendance-state-banner state-complete">
+                            <div className="state-content">
+                                <span className="state-badge badge-success">✓ COMPLETED</span>
+                                <h3>Today's Attendance Complete</h3>
+                                <p>
+                                    Checked in at <strong>{formatTime(attendance.checkInTime)}</strong> &bull; Checked out at <strong>{formatTime(attendance.checkOutTime)}</strong>. No further actions required today.
+                                </p>
+                            </div>
+                            <div className="state-action-wrap">
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => navigate("/attendance")}
+                                >
+                                    View Full History
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* DETAILS STRIP */}
+                    <div className="attendance-metadata-strip">
+                        <div className="meta-item">
+                            <span>Campus Date</span>
+                            <strong>{attendance?.date || formatDate(new Date())}</strong>
+                        </div>
+                        <div className="meta-item">
+                            <span>Attendance ID</span>
+                            <strong>{attendance?.attendanceId || "Generated at check-in"}</strong>
+                        </div>
+                        <div className="meta-item">
+                            <span>Verification</span>
+                            <strong>{verificationBadgeText}</strong>
+                        </div>
+                        <div className="meta-item">
+                            <span>Sync Mode</span>
+                            <strong>{attendance?.syncStatus || "REAL-TIME SYNCED"}</strong>
+                        </div>
+                        <div className="meta-item">
+                            <span>Client Channel</span>
+                            <strong>Web Application (HTTPS)</strong>
+                        </div>
+                    </div>
+                </div>
             </section>
 
-
-            {/* ==================================================
-                FACULTY INFORMATION
-            ================================================== */}
-
+            {/* 4. REDESIGNED VERIFICATION STATUS PANEL */}
             <section className="dashboard-card">
-
                 <div className="card-header">
-
                     <div>
-
-                        <span className="card-label">
-                            FACULTY
-                        </span>
-
-
-                        <h2>
-                            Faculty Information
-                        </h2>
-
+                        <span className="card-label">SECURITY & COMPLIANCE</span>
+                        <h2>Multi-Factor Verification Panel</h2>
+                        <p>Comprehensive signal evaluation performed by the FacultyFlow backend verification service.</p>
                     </div>
+                </div>
 
+                <VerificationStatusCard
+                    verification={verification}
+                    attendance={attendance}
+                    onRefresh={loadTodayAttendance}
+                    refreshing={attendanceLoading}
+                />
+            </section>
+
+            {/* 5. CONCISE ATTENDANCE HISTORY PREVIEW */}
+            <section className="dashboard-card history-preview-card">
+                <div className="card-header">
+                    <div>
+                        <span className="card-label">RECORDS</span>
+                        <h2>Attendance History Summary</h2>
+                        <p>Review past institutional attendance records, geofence compliance and verification audits.</p>
+                    </div>
 
                     <button
-                        className="btn-secondary"
                         type="button"
-                        onClick={() =>
-                            navigate(
-                                "/profile"
-                            )
-                        }
+                        className="btn-secondary"
+                        onClick={() => navigate("/attendance")}
                     >
-
-                        View Profile
-
+                        View Full History &rarr;
                     </button>
-
                 </div>
 
-
-                <div className="today-details-grid">
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Name
-                        </span>
-
-                        <strong>
-                            {facultyName}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Faculty ID
-                        </span>
-
-                        <strong>
-                            {facultyId}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Department
-                        </span>
-
-                        <strong>
-                            {facultyDepartment}
-                        </strong>
-
-                    </div>
-
-
-                    <div className="today-detail">
-
-                        <span>
-                            Designation
-                        </span>
-
-                        <strong>
-                            {facultyDesignation}
-                        </strong>
-
-                    </div>
-
+                <div className="history-preview-content">
+                    {attendance ? (
+                        <div className="today-record-preview">
+                            <div className="record-preview-header">
+                                <div>
+                                    <span className="record-date">{formatDate(attendance.date)}</span>
+                                    <span className="record-id">{attendance.attendanceId}</span>
+                                </div>
+                                <span className={`status-pill ${
+                                    attendance.status === "Present"
+                                        ? "status-present"
+                                        : "status-pending"
+                                }`}>
+                                    {attendance.status || "Present"}
+                                </span>
+                            </div>
+                            <div className="record-times-row">
+                                <div>
+                                    <span>Check In Time</span>
+                                    <strong>{formatTime(attendance.checkInTime)}</strong>
+                                </div>
+                                <div>
+                                    <span>Check Out Time</span>
+                                    <strong>{formatTime(attendance.checkOutTime)}</strong>
+                                </div>
+                                <div>
+                                    <span>Verification State</span>
+                                    <strong>{attendance.verificationStatus || "Verified"}</strong>
+                                </div>
+                                <div>
+                                    <span>Server Source</span>
+                                    <strong>{attendance.source || "Web Client"}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="history-empty-prompt">
+                            <p>No check-in recorded for today yet. Use the <strong>Record Attendance</strong> card above to begin your day.</p>
+                        </div>
+                    )}
                 </div>
-
             </section>
-
-
         </section>
-
     );
-
 }
-
 
 export default FacultyDashboard;

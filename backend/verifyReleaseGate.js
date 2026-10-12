@@ -12,6 +12,9 @@ import fs from 'fs';
 import path from 'path';
 
 dotenv.config();
+if (!process.env.MONGO_URI) {
+  dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
+}
 
 const BASE_URL = 'http://localhost:5000/api';
 

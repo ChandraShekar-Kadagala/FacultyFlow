@@ -226,6 +226,35 @@ function PolicyForm({
 
                 </label>
 
+
+                <label className="policy-toggle">
+
+                    <div>
+                        <strong>
+                            Schedule Verification
+                        </strong>
+
+                        <span>
+                            Enforce attendance check-in window and schedule compliance.
+                        </span>
+                    </div>
+
+                    <input
+                        type="checkbox"
+                        checked={
+                            Boolean(
+                                policy.scheduleVerification
+                            )
+                        }
+                        onChange={() =>
+                            onToggle(
+                                "scheduleVerification"
+                            )
+                        }
+                    />
+
+                </label>
+
             </div>
 
 

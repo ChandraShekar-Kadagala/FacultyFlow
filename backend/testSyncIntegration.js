@@ -6,7 +6,12 @@ import User from './src/models/User.js';
 import AttendanceRecord from './src/models/AttendanceRecord.js';
 import SyncEvent from './src/models/SyncEvent.js';
 
+import path from 'path';
+
 dotenv.config();
+if (!process.env.MONGO_URI) {
+  dotenv.config({ path: path.resolve(import.meta.dirname, '.env') });
+}
 
 async function testSync() {
   await mongoose.connect(process.env.MONGO_URI);

@@ -254,6 +254,11 @@ function PolicyConfigurationPage() {
         setPolicy
     ] = useState(null);
 
+    const [
+        initialPolicy,
+        setInitialPolicy
+    ] = useState(null);
+
 
     // ========================================================
     // LOADING STATE
@@ -385,8 +390,11 @@ function PolicyConfigurationPage() {
                         backendPolicy
                     );
 
-
                 setPolicy(
+                    formPolicy
+                );
+
+                setInitialPolicy(
                     formPolicy
                 );
 
@@ -399,8 +407,8 @@ function PolicyConfigurationPage() {
                     requestError
                 );
 
-
                 setPolicy(null);
+                setInitialPolicy(null);
 
                 setError(
                     requestError?.message ||
@@ -414,7 +422,6 @@ function PolicyConfigurationPage() {
             }
 
         }
-
 
         loadPolicy();
 
@@ -441,7 +448,6 @@ function PolicyConfigurationPage() {
             })
         );
 
-
         setErrors(
             current => ({
 
@@ -452,7 +458,6 @@ function PolicyConfigurationPage() {
 
             })
         );
-
 
         setMessage("");
 
@@ -478,6 +483,16 @@ function PolicyConfigurationPage() {
             })
         );
 
+        setErrors(
+            current => ({
+
+                ...current,
+
+                requiredVerification:
+                    undefined
+
+            })
+        );
 
         setMessage("");
 
@@ -624,6 +639,10 @@ function PolicyConfigurationPage() {
                 savedFormPolicy
             );
 
+            setInitialPolicy(
+                savedFormPolicy
+            );
+
             setErrors({});
 
 
@@ -660,20 +679,27 @@ function PolicyConfigurationPage() {
     // ========================================================
     // RESET
     // ========================================================
-    //
-    // The old reset behavior used localStorage.
-    //
-    // MongoDB is now the authoritative policy source.
-    //
-    // Therefore reset does not modify backend data.
-    //
+    // Reverts any unsaved changes back to the active server
+    // configuration loaded from MongoDB.
     // ========================================================
 
     function handleReset() {
 
-        setMessage(
-            "Local policy reset is no longer available. Policy configuration is managed by the backend."
-        );
+        if (initialPolicy) {
+            setPolicy({
+                ...initialPolicy
+            });
+
+            setErrors({});
+
+            setMessage(
+                "Policy form has been reset to the active server configuration."
+            );
+        } else {
+            setMessage(
+                "No baseline server configuration is loaded to reset."
+            );
+        }
 
     }
 

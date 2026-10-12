@@ -81,6 +81,7 @@ function NetworkTable({
 
                             <tr
                                 key={
+                                    network.networkLocationId ||
                                     network.id
                                 }
                             >
@@ -193,7 +194,9 @@ function NetworkTable({
                                             className="btn-secondary"
                                             onClick={() =>
                                                 onToggle(
-                                                    network.id
+                                                    network.networkLocationId ||
+                                                    network.id,
+                                                    network.active
                                                 )
                                             }
                                         >
@@ -208,6 +211,7 @@ function NetworkTable({
                                             className="network-delete-button"
                                             onClick={() =>
                                                 onDelete(
+                                                    network.networkLocationId ||
                                                     network.id
                                                 )
                                             }

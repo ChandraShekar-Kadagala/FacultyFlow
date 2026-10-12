@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 function NetworkForm({
     network,
     errors,
@@ -6,12 +8,13 @@ function NetworkForm({
     onSave,
     onCancel
 }) {
+    const [detecting, setDetecting] = useState(false);
+    const [detectionInfo, setDetectionInfo] = useState(null);
 
     function updateListField(
         field,
         value
     ) {
-
         const values =
             value
                 .split(",")
@@ -27,25 +30,77 @@ function NetworkForm({
         );
     }
 
+    function handleDetectNetwork() {
+        setDetecting(true);
+
+        const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+        const connection = typeof navigator !== "undefined"
+            ? (navigator.connection || navigator.mozConnection || navigator.webkitConnection)
+            : null;
+
+        const detectedType = connection?.type || connection?.effectiveType || (isOnline ? "broadband/wifi" : "offline");
+        const downlink = connection?.downlink ? `${connection.downlink} Mbps` : null;
+
+        setTimeout(() => {
+            setDetecting(false);
+            setDetectionInfo({
+                online: isOnline,
+                connectionType: detectedType,
+                downlink,
+                note: "Browser security sandboxes strictly prevent web pages from querying low-level Wi-Fi SSID and access point BSSID (MAC addresses) to protect user location and device privacy. Please specify expected university Wi-Fi SSID and AP BSSIDs manually below."
+            });
+        }, 350);
+    }
 
     const bssidText =
         (
             network.expectedBSSIDs || []
         ).join(", ");
 
-
     const ipRangeText =
         (
             network.allowedIPRanges || []
         ).join(", ");
 
-
     return (
         <div className="network-form">
+            {/* NETWORK DETECTION ACTION BAR */}
+            <div className="location-detect-bar">
+                <div>
+                    <strong>Network Environment Diagnostics</strong>
+                    <p>
+                        Inspect the current client connection. Note: Standard web browsers cannot read Wi-Fi SSID or BSSID for security reasons.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    className="btn-secondary location-detect-btn"
+                    onClick={handleDetectNetwork}
+                    disabled={detecting}
+                >
+                    {detecting ? "Inspecting network..." : "📶 Detect Current Network"}
+                </button>
+            </div>
+
+            {detectionInfo && (
+                <div className="network-detection-banner">
+                    <div className="detection-banner-header">
+                        <span className="geofence-badge">
+                            {detectionInfo.online ? "ONLINE" : "OFFLINE"}
+                        </span>
+                        <span className="detection-type">
+                            Link: {detectionInfo.connectionType} {detectionInfo.downlink ? `(${detectionInfo.downlink})` : ""}
+                        </span>
+                    </div>
+                    <p className="detection-note">
+                        ℹ️ {detectionInfo.note}
+                    </p>
+                </div>
+            )}
 
             <div className="network-form-grid">
-
                 {/* NAME */}
+
 
                 <div className="form-group">
 
