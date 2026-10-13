@@ -6,16 +6,35 @@ import AttendanceRecord
 
 
 // ============================================================
-// SERVER DATE
+// SERVER DATE (TIMEZONE AWARE)
 // ============================================================
 
-function getServerDate() {
+function getServerDate(
+    now = new Date(),
+    timezone = "Asia/Kolkata"
+) {
 
-    const now = new Date();
+    try {
 
-    return now
-        .toISOString()
-        .slice(0, 10);
+        return new Intl.DateTimeFormat("en-CA", {
+
+            timeZone: timezone || "Asia/Kolkata",
+
+            year: "numeric",
+
+            month: "2-digit",
+
+            day: "2-digit"
+
+        }).format(now);
+
+    } catch (_err) {
+
+        return now
+            .toISOString()
+            .slice(0, 10);
+
+    }
 
 }
 

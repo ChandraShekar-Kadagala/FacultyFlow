@@ -80,6 +80,10 @@ export function getAttendanceErrorMessage(error, fallbackMessage = "Attendance o
             return "Authenticated faculty profile is not available.";
         case "ATTENDANCE_VERIFICATION_INCOMPLETE":
             return msg || "Attendance verification is incomplete.";
+        case "ATTENDANCE_BEFORE_START_WINDOW":
+            return msg || "Attendance check-in has not started yet.";
+        case "ATTENDANCE_AFTER_END_WINDOW":
+            return msg || "Attendance check-in window has ended.";
         case "ATTENDANCE_OUTSIDE_ALLOWED_TIME":
             return msg || "Attendance cannot be recorded outside the permitted schedule window.";
         case "NETWORK_ERROR":
@@ -362,7 +366,7 @@ export function AttendanceProvider({ children }) {
             console.error("Check-in error:", err);
 
             const verifData = err?.verification || err?.data?.verification || null;
-            if (verifData) {
+            if (verifData && verifData.result === "FAILED") {
                 setVerification(verifData);
             }
 

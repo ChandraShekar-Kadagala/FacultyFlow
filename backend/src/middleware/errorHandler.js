@@ -114,6 +114,10 @@ export function errorHandler(
         response.blockingTypes = error.blockingTypes;
     }
 
+    if (error.policyDecision) {
+        response.policyDecision = error.policyDecision;
+    }
+
 
     // ========================================================
     // DEVELOPMENT DEBUG INFORMATION

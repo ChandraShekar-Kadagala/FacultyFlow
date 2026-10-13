@@ -212,7 +212,8 @@ export async function verifyScheduleTime({
 
     const currentMinutes =
         dateToMinutes(
-            serverTime
+            serverTime,
+            policy?.timezone || "Asia/Kolkata"
         );
 
 

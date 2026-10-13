@@ -95,22 +95,73 @@ function timeToMinutes(
 
 
 // ============================================================
-// SERVER DATE MINUTES
+// ============================================================
+// SERVER DATE MINUTES (TIMEZONE AWARE)
 // ============================================================
 
-function dateToMinutes(
-    date
+export function dateToMinutes(
+    date,
+    timezone = "Asia/Kolkata"
 ) {
 
-    return (
+    if (
+        !(date instanceof Date) ||
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
 
-        date.getHours() * 60
+        return null;
 
-        +
+    }
 
-        date.getMinutes()
+    try {
 
-    );
+        const formatter =
+            new Intl.DateTimeFormat("en-US", {
+
+                timeZone: timezone || "Asia/Kolkata",
+
+                hour: "numeric",
+
+                minute: "numeric",
+
+                hour12: false
+
+            });
+
+        const parts =
+            formatter.formatToParts(date);
+
+        let hour = 0;
+        let minute = 0;
+
+        for (const part of parts) {
+
+            if (part.type === "hour") {
+
+                hour = parseInt(part.value, 10);
+
+                if (hour === 24) hour = 0;
+
+            } else if (part.type === "minute") {
+
+                minute = parseInt(part.value, 10);
+
+            }
+
+        }
+
+        return (hour * 60) + minute;
+
+    } catch (_err) {
+
+        return (
+            date.getHours() * 60
+        ) +
+        date.getMinutes();
+
+    }
 
 }
 
@@ -522,6 +573,11 @@ function normalizePolicyInput(
             earlyExitThreshold ?? 0,
 
         requiredSignals,
+
+        timezone:
+            typeof source.timezone === "string" && source.timezone.trim()
+                ? source.timezone.trim()
+                : "Asia/Kolkata",
 
         active:
             active ?? true
@@ -981,6 +1037,9 @@ export async function updateAttendancePolicy(
     existing.requiredSignals =
         normalized.requiredSignals;
 
+    existing.timezone =
+        normalized.timezone;
+
     existing.active =
         normalized.active;
 
@@ -1253,6 +1312,7 @@ export async function deactivateAttendancePolicy(
 
 
 // ============================================================
+// ============================================================
 // CHECK-IN POLICY EVALUATION
 // ============================================================
 
@@ -1278,6 +1338,33 @@ export function evaluateCheckInPolicy({
             "ATTENDANCE_POLICY_UNAVAILABLE";
 
         throw error;
+
+    }
+
+
+    if (
+        !(serverTime instanceof Date) ||
+        Number.isNaN(serverTime.getTime())
+    ) {
+
+        return {
+
+            allowed:
+                false,
+
+            status:
+                "Rejected",
+
+            policyState:
+                "TIME_UNAVAILABLE",
+
+            code:
+                "SERVER_TIME_UNAVAILABLE",
+
+            reason:
+                "Authoritative server time is unavailable."
+
+        };
 
     }
 
@@ -1315,9 +1402,15 @@ export function evaluateCheckInPolicy({
     }
 
 
+    const timezone =
+        policy.timezone ||
+        process.env.INSTITUTIONAL_TIMEZONE ||
+        "Asia/Kolkata";
+
     const currentMinutes =
         dateToMinutes(
-            serverTime
+            serverTime,
+            timezone
         );
 
 
@@ -1328,7 +1421,7 @@ export function evaluateCheckInPolicy({
 
 
     // --------------------------------------------------------
-    // BEFORE START
+    // BOUNDARY 1: BEFORE START
     // --------------------------------------------------------
 
     if (
@@ -1347,8 +1440,28 @@ export function evaluateCheckInPolicy({
             policyState:
                 "BEFORE_START",
 
+            code:
+                "ATTENDANCE_BEFORE_START_WINDOW",
+
             reason:
-                "Attendance check-in has not started yet."
+                `Attendance check-in has not started yet. Campus window opens at ${policy.startTime} (${timezone}).`,
+
+            metadata: {
+
+                currentMinutes,
+
+                startMinutes,
+
+                endMinutes,
+
+                graceEnd,
+
+                timezone,
+
+                serverTime:
+                    serverTime.toISOString()
+
+            }
 
         };
 
@@ -1356,7 +1469,7 @@ export function evaluateCheckInPolicy({
 
 
     // --------------------------------------------------------
-    // WITHIN GRACE
+    // BOUNDARY 2: WITHIN GRACE (ON TIME)
     // --------------------------------------------------------
 
     if (
@@ -1375,8 +1488,28 @@ export function evaluateCheckInPolicy({
             policyState:
                 "ON_TIME",
 
+            code:
+                "ATTENDANCE_ON_TIME",
+
             reason:
-                "Attendance check-in is within the allowed grace period."
+                "Attendance check-in is within the allowed grace period.",
+
+            metadata: {
+
+                currentMinutes,
+
+                startMinutes,
+
+                endMinutes,
+
+                graceEnd,
+
+                timezone,
+
+                serverTime:
+                    serverTime.toISOString()
+
+            }
 
         };
 
@@ -1384,7 +1517,7 @@ export function evaluateCheckInPolicy({
 
 
     // --------------------------------------------------------
-    // LATE BUT WITHIN WINDOW
+    // BOUNDARY 3: LATE BUT WITHIN WINDOW
     // --------------------------------------------------------
 
     if (
@@ -1403,8 +1536,28 @@ export function evaluateCheckInPolicy({
             policyState:
                 "LATE",
 
+            code:
+                "ATTENDANCE_LATE_WINDOW",
+
             reason:
-                "Attendance check-in is late but still within the allowed window."
+                "Attendance check-in is late but still within the allowed window.",
+
+            metadata: {
+
+                currentMinutes,
+
+                startMinutes,
+
+                endMinutes,
+
+                graceEnd,
+
+                timezone,
+
+                serverTime:
+                    serverTime.toISOString()
+
+            }
 
         };
 
@@ -1412,7 +1565,7 @@ export function evaluateCheckInPolicy({
 
 
     // --------------------------------------------------------
-    // AFTER END
+    // BOUNDARY 4: AFTER END
     // --------------------------------------------------------
 
     return {
@@ -1426,8 +1579,28 @@ export function evaluateCheckInPolicy({
         policyState:
             "AFTER_END",
 
+        code:
+            "ATTENDANCE_AFTER_END_WINDOW",
+
         reason:
-            "Attendance check-in window has ended."
+            `Attendance check-in window has ended. Campus window closed at ${policy.endTime} (${timezone}).`,
+
+        metadata: {
+
+            currentMinutes,
+
+            startMinutes,
+
+            endMinutes,
+
+            graceEnd,
+
+            timezone,
+
+            serverTime:
+                serverTime.toISOString()
+
+        }
 
     };
 
@@ -1490,21 +1663,25 @@ export function evaluateCheckOutPolicy({
     }
 
 
+    const timezone =
+        policy.timezone ||
+        process.env.INSTITUTIONAL_TIMEZONE ||
+        "Asia/Kolkata";
+
     const currentMinutes =
         dateToMinutes(
-            serverTime
+            serverTime,
+            timezone
         );
 
 
     const earlyExitBoundary =
-
         endMinutes
         -
         policy.earlyExitThreshold;
 
 
     const earlyExit =
-
         currentMinutes <
         earlyExitBoundary;
 
@@ -1524,7 +1701,22 @@ export function evaluateCheckOutPolicy({
         reason:
             earlyExit
                 ? "Faculty checked out before the configured early-exit boundary."
-                : "Faculty checked out within the configured exit policy."
+                : "Faculty checked out within the configured exit policy.",
+
+        metadata: {
+
+            currentMinutes,
+
+            endMinutes,
+
+            earlyExitBoundary,
+
+            timezone,
+
+            serverTime:
+                serverTime.toISOString()
+
+        }
 
     };
 

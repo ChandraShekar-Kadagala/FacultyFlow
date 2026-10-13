@@ -518,6 +518,7 @@ export async function checkInController(
                 403;
 
             error.code =
+                policyDecision.code ||
                 "ATTENDANCE_OUTSIDE_ALLOWED_TIME";
 
             error.policyDecision =

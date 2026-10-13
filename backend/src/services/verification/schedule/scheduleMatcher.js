@@ -63,7 +63,8 @@ export function timeToMinutes(
 // ============================================================
 
 export function dateToMinutes(
-    date
+    date,
+    timezone = "Asia/Kolkata"
 ) {
 
     if (
@@ -78,10 +79,73 @@ export function dateToMinutes(
     }
 
 
+    try {
+
+        const formatter =
+            new Intl.DateTimeFormat("en-US", {
+
+                timeZone: timezone || "Asia/Kolkata",
+
+                hour: "numeric",
+
+                minute: "numeric",
+
+                hour12: false
+
+            });
+
+        const parts =
+            formatter.formatToParts(date);
+
+        let hour = 0;
+        let minute = 0;
+
+        for (const part of parts) {
+
+            if (part.type === "hour") {
+
+                hour = parseInt(part.value, 10);
+
+                if (hour === 24) hour = 0;
+
+            } else if (part.type === "minute") {
+
+                minute = parseInt(part.value, 10);
+
+            }
+
+        }
+
+        return (hour * 60) + minute;
+
+    } catch (_err) {
+
+        return (
+            date.getHours() * 60
+        ) +
+        date.getMinutes();
+
+    }
+
+}
+
+
+// ============================================================
+// CHECK BEFORE START WINDOW
+// ============================================================
+
+export function isBeforeStartTime({
+
+    currentMinutes,
+
+    startMinutes
+
+}) {
+
     return (
-        date.getHours() * 60
-    ) +
-    date.getMinutes();
+        currentMinutes <
+        startMinutes
+    );
 
 }
 

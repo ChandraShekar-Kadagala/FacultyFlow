@@ -68,6 +68,9 @@ function mapBackendPolicyToForm(
         earlyExitThreshold:
             backendPolicy?.earlyExitThreshold ?? 0,
 
+        timezone:
+            backendPolicy?.timezone || "Asia/Kolkata",
+
 
         // ----------------------------------------------------
         // VERIFICATION SETTINGS
@@ -223,6 +226,9 @@ function mapFormPolicyToBackend(
             ),
 
         requiredSignals,
+
+        timezone:
+            policy.timezone || "Asia/Kolkata",
 
         active:
             Boolean(

@@ -15,16 +15,36 @@ import {
 
 
 // ============================================================
-// GET SERVER DATE
+// GET SERVER DATE (TIMEZONE AWARE)
 // ============================================================
 
 function getServerDate(
-    serverTime = new Date()
+    serverTime = new Date(),
+    timezone = "Asia/Kolkata"
 ) {
 
-    return serverTime
-        .toISOString()
-        .slice(0, 10);
+    try {
+
+        return new Intl.DateTimeFormat("en-CA", {
+
+            timeZone: timezone || "Asia/Kolkata",
+
+            year: "numeric",
+
+            month: "2-digit",
+
+            day: "2-digit"
+
+        }).format(serverTime);
+
+    } catch (_err) {
+
+        return serverTime
+            .toISOString()
+            .slice(0, 10);
+
+    }
+
 }
 
 

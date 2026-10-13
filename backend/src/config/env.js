@@ -28,7 +28,11 @@ const env = {
 
     jwtExpiresIn:
         process.env.JWT_EXPIRES_IN ||
-        "1d"
+        "1d",
+
+    institutionalTimezone:
+        process.env.INSTITUTIONAL_TIMEZONE ||
+        "Asia/Kolkata"
 };
 
 

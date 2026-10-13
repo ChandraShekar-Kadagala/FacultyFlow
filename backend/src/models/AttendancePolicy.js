@@ -179,6 +179,24 @@ const attendancePolicySchema =
 
 
             // ------------------------------------------------
+            // INSTITUTIONAL TIMEZONE
+            // ------------------------------------------------
+
+            timezone: {
+
+                type:
+                    String,
+
+                default:
+                    "Asia/Kolkata",
+
+                trim:
+                    true
+
+            },
+
+
+            // ------------------------------------------------
             // ACTIVE STATE
             // ------------------------------------------------
 
@@ -194,7 +212,6 @@ const attendancePolicySchema =
                     true
 
             }
-
         },
 
 
