@@ -69,6 +69,25 @@ export async function checkLocationPermission() {
 }
 
 /**
+ * Explicitly triggers the Android system location permission prompt.
+ */
+export async function requestLocationPermission() {
+    try {
+        if (!Location || !Location.requestForegroundPermissionsAsync) {
+            return { granted: false, canAskAgain: false, status: "unsupported" };
+        }
+        const perm = await Location.requestForegroundPermissionsAsync();
+        return {
+            granted: perm.status === "granted",
+            canAskAgain: perm.canAskAgain,
+            status: perm.status
+        };
+    } catch (_err) {
+        return { granted: false, canAskAgain: false, status: "error" };
+    }
+}
+
+/**
  * Safely requests permission and captures GPS location observations.
  * Does not substitute hardcoded coordinates or claim permission equals validity.
  */
@@ -106,15 +125,22 @@ export async function getLocationSignal() {
             };
         }
 
-        const position = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced
-        });
+        let position = null;
+        try {
+            position = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced
+            });
+        } catch (_posErr) {
+            if (Location.getLastKnownPositionAsync) {
+                position = await Location.getLastKnownPositionAsync();
+            }
+        }
 
         if (!position || !position.coords) {
             return {
                 signal: null,
                 permissionStatus: "unavailable",
-                message: "Unable to retrieve GPS coordinates. Ensure you have clear reception."
+                message: "Unable to retrieve GPS coordinates. Ensure your device has clear satellite reception or Wi-Fi scanning enabled."
             };
         }
 

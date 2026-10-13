@@ -5,59 +5,64 @@ import { verifyLocation } from "./locationService";
 import { verifySchedule } from "./scheduleService";
 
 /**
- * Dynamically builds ordered verification steps based on the active policy.
+ * Dynamically builds ordered verification steps based strictly on the active policy.
+ * If policy retrieval fails or policy is null, returns null so the UI displays
+ * an explicit policy error instead of silently falling back to a hardcoded list.
  */
 export function buildVerificationSteps(policy = null) {
-    const rawSignals = Array.isArray(policy?.requiredSignals) && policy.requiredSignals.length > 0
-        ? policy.requiredSignals.map(s => String(s).toUpperCase())
-        : ["IDENTITY", "LOCATION", "DEVICE"];
+    if (!policy || !Array.isArray(policy.requiredSignals)) {
+        return null;
+    }
 
+    const rawSignals = policy.requiredSignals.map(s => String(s).toUpperCase());
     const steps = [];
 
-    // 1. Identity & Session (always baseline required)
-    steps.push({
-        id: "identity",
-        type: "IDENTITY",
-        title: "Faculty Identity & Session",
-        description: "Verifies authenticated faculty credentials and institutional role.",
-        icon: "person-circle-outline",
-        isRequired: rawSignals.includes("IDENTITY") || true,
-        status: "not_started",
-        resultMessage: null,
-        diagnostics: null
-    });
-
-    // 2. Schedule window
-    if (rawSignals.includes("SCHEDULE") || policy?.startTime) {
+    // 1. Identity & Session
+    if (rawSignals.includes("IDENTITY")) {
         steps.push({
-            id: "schedule",
-            type: "SCHEDULE",
-            title: "Institutional Schedule Window",
-            description: `Validates attendance is recorded within official hours (${policy?.startTime || "00:00"} – ${policy?.endTime || "23:59"}).`,
-            icon: "time-outline",
-            isRequired: rawSignals.includes("SCHEDULE"),
+            id: "identity",
+            type: "IDENTITY",
+            title: "Faculty Identity & Session",
+            description: "Verifies authenticated faculty credentials and institutional role.",
+            icon: "person-circle-outline",
+            isRequired: true,
             status: "not_started",
             resultMessage: null,
             diagnostics: null
         });
     }
 
-    // 3. Location & Geofence
-    if (rawSignals.includes("LOCATION") || true) {
+    // 2. Institutional Schedule window (Only if configured by admin)
+    if (rawSignals.includes("SCHEDULE")) {
+        steps.push({
+            id: "schedule",
+            type: "SCHEDULE",
+            title: "Institutional Schedule Window",
+            description: `Validates attendance is recorded within official hours (${policy.startTime || "00:00"} – ${policy.endTime || "23:59"}).`,
+            icon: "time-outline",
+            isRequired: true,
+            status: "not_started",
+            resultMessage: null,
+            diagnostics: null
+        });
+    }
+
+    // 3. Location & Geofence (Only if configured by admin)
+    if (rawSignals.includes("LOCATION")) {
         steps.push({
             id: "location",
             type: "LOCATION",
             title: "Campus Geofence Location",
             description: "Captures device GPS coordinates to evaluate campus perimeter presence.",
             icon: "location-outline",
-            isRequired: rawSignals.includes("LOCATION"),
+            isRequired: true,
             status: "not_started",
             resultMessage: null,
             diagnostics: null
         });
     }
 
-    // 4. Device & Native Biometrics
+    // 4. Device & Native Biometrics (Only if configured by admin)
     if (rawSignals.includes("DEVICE")) {
         steps.push({
             id: "biometric",
@@ -72,7 +77,7 @@ export function buildVerificationSteps(policy = null) {
         });
     }
 
-    // 5. University Network / Wi-Fi
+    // 5. University Network / Wi-Fi (Only if configured by admin)
     if (rawSignals.includes("NETWORK")) {
         steps.push({
             id: "network",
@@ -86,19 +91,6 @@ export function buildVerificationSteps(policy = null) {
             diagnostics: null
         });
     }
-
-    // 6. Server Confirmation (Always final authoritative step)
-    steps.push({
-        id: "server",
-        type: "SERVER",
-        title: "Server Attendance Confirmation",
-        description: "Authoritative evaluation and persistence by FacultyFlow attendance engine.",
-        icon: "cloud-done-outline",
-        isRequired: true,
-        status: "not_started",
-        resultMessage: null,
-        diagnostics: null
-    });
 
     return steps;
 }
