@@ -16,16 +16,17 @@ import {
     evaluateCheckOutPolicy
 } from "../src/services/attendance/policyService.js";
 
-// Sample active policy configured in the Admin Portal
+// Sample active scheduled policy configured in the Admin Portal
 const testPolicy = {
     policyId: "POL-TEST",
+    attendanceMode: "SCHEDULED",
     startTime: "08:45",
     endTime: "09:43",
     gracePeriod: 30, // graceEnd = 08:45 + 30m = 09:15
     lateThreshold: 60,
     earlyExitThreshold: 60,
     timezone: "Asia/Kolkata",
-    requiredSignals: ["IDENTITY", "DEVICE", "NETWORK", "LOCATION"],
+    requiredSignals: ["IDENTITY", "DEVICE", "NETWORK", "LOCATION", "SCHEDULE"],
     active: true
 };
 

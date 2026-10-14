@@ -31,6 +31,7 @@ import {
     getFailedCount,
     retryFailedEvents
 } from "../services/storage/sqliteQueue";
+import { calculateWorkingDuration } from "../services/attendance/durationUtils";
 
 const AttendanceContext = createContext(null);
 
@@ -457,13 +458,19 @@ export function AttendanceProvider({ children }) {
             });
 
             // Optimistic update of existing record
-            setAttendance((prev) => ({
-                ...(prev || {}),
-                date: prev?.date || clientTimestamp,
-                checkOutTime: clientTimestamp,
-                syncStatus: "PENDING_SYNC",
-                checkOutSyncEventId: syncEventId
-            }));
+            setAttendance((prev) => {
+                const duration = calculateWorkingDuration(prev?.checkInTime, clientTimestamp);
+                return {
+                    ...(prev || {}),
+                    date: prev?.date || clientTimestamp,
+                    checkOutTime: clientTimestamp,
+                    status: "Completed",
+                    workingDurationMinutes: duration.minutes,
+                    workingDurationFormatted: duration.formatted,
+                    syncStatus: "PENDING_SYNC",
+                    checkOutSyncEventId: syncEventId
+                };
+            });
 
             await refreshPendingCount();
 
@@ -502,8 +509,15 @@ export function AttendanceProvider({ children }) {
     const isCheckedOut = Boolean(attendance?.checkOutTime);
     const canCheckIn = !isCheckedIn && !actionLoading;
     const canCheckOut = isCheckedIn && !isCheckedOut && !actionLoading;
-    const attendanceStatus = attendance?.status || (isCheckedIn ? "Present" : "Not Checked In");
+    const attendanceStatus = attendance?.status || (isCheckedOut ? "Completed" : isCheckedIn ? "Present" : "Not Checked In");
     const verificationStatus = attendance?.verificationStatus || verification?.result || (isCheckedIn && attendance?.syncStatus === "PENDING_SYNC" ? "Pending Sync" : "Pending");
+
+    const durationInfo = attendance?.checkInTime
+        ? calculateWorkingDuration(attendance.checkInTime, attendance.checkOutTime)
+        : null;
+
+    const workingDurationFormatted = attendance?.workingDurationFormatted || durationInfo?.formatted || (isCheckedIn && !isCheckedOut ? "< 1 min (live)" : "—");
+    const workingDurationMinutes = attendance?.workingDurationMinutes ?? durationInfo?.minutes ?? null;
 
     const retryFailedSync = useCallback(async () => {
         if (!currentUserId) return;
@@ -539,6 +553,9 @@ export function AttendanceProvider({ children }) {
         canCheckOut,
         attendanceStatus,
         verificationStatus,
+        durationInfo,
+        workingDurationFormatted,
+        workingDurationMinutes,
         // Phase 3 & 4 Synchronization
         isOnline,
         isSyncing: isSyncingState,
@@ -570,6 +587,9 @@ export function AttendanceProvider({ children }) {
         canCheckOut,
         attendanceStatus,
         verificationStatus,
+        durationInfo,
+        workingDurationFormatted,
+        workingDurationMinutes,
         isOnline,
         isSyncingState,
         pendingSyncCount,

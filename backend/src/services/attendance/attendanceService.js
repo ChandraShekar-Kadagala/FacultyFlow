@@ -13,6 +13,37 @@ import {
     VERIFICATION_RESULTS
 } from "../verification/verificationConstants.js";
 
+import {
+    calculateWorkingDuration
+} from "../../utils/attendance/durationUtils.js";
+
+
+// ============================================================
+// FORMAT ATTENDANCE RECORD WITH DURATION
+// ============================================================
+
+export function formatAttendanceRecord(record) {
+    if (!record) return null;
+    const doc = record.toObject ? record.toObject() : { ...record };
+    if (doc.checkInTime) {
+        const duration = calculateWorkingDuration(doc.checkInTime, doc.checkOutTime);
+        doc.workingDurationMinutes = doc.workingDurationMinutes ?? (doc.checkOutTime ? duration.minutes : null);
+        doc.workingDurationFormatted = doc.workingDurationFormatted || (doc.checkOutTime ? duration.formatted : null);
+        doc.workingDurationCompact = duration.formattedCompact;
+        doc.isOngoing = duration.isOngoing;
+        doc.elapsedMinutes = duration.minutes;
+        doc.elapsedFormatted = duration.formatted;
+    } else {
+        doc.workingDurationMinutes = null;
+        doc.workingDurationFormatted = "—";
+        doc.workingDurationCompact = "—";
+        doc.isOngoing = false;
+        doc.elapsedMinutes = 0;
+        doc.elapsedFormatted = "—";
+    }
+    return doc;
+}
+
 
 // ============================================================
 // GET SERVER DATE (TIMEZONE AWARE)
@@ -78,7 +109,7 @@ export async function getTodayAttendance(
     });
     const canonicalId = faculty ? faculty.facultyId : facultyId;
 
-    return AttendanceRecord.findOne({
+    const record = await AttendanceRecord.findOne({
 
         facultyId: { $in: [canonicalId, facultyId] },
 
@@ -86,6 +117,8 @@ export async function getTodayAttendance(
             getServerDate()
 
     });
+
+    return formatAttendanceRecord(record);
 }
 
 
@@ -119,13 +152,16 @@ export async function getAttendanceHistory(
     });
     const canonicalId = faculty ? faculty.facultyId : facultyId;
 
-    return AttendanceRecord
+    const records = await AttendanceRecord
         .find({
             facultyId: { $in: [canonicalId, facultyId] }
         })
         .sort({
-            date: -1
+            date: -1,
+            checkInTime: -1
         });
+
+    return records.map(r => formatAttendanceRecord(r));
 }
 
 
@@ -360,7 +396,7 @@ export async function createCheckIn({
         });
 
 
-    return attendance;
+    return formatAttendanceRecord(attendance);
 }
 
 
@@ -500,42 +536,34 @@ export async function createCheckOut({
 
 
     // ========================================================
-    // SAVE CHECK-OUT
+    // SAVE CHECK-OUT & WORKING DURATION
     // ========================================================
 
-    attendance.checkOutTime =
-        serverTime;
+    attendance.checkOutTime = serverTime;
 
+    const duration = calculateWorkingDuration(attendance.checkInTime, serverTime);
+    attendance.workingDurationMinutes = duration.minutes;
+    attendance.workingDurationFormatted = duration.formatted;
 
     // ========================================================
-    // EARLY EXIT
+    // STATUS (Completed or Incomplete if earlyExit)
     // ========================================================
 
-    if (
-        earlyExit
-    ) {
-
-        attendance.status =
-            "Incomplete";
+    if (earlyExit) {
+        attendance.status = "Incomplete";
+    } else {
+        attendance.status = "Completed";
     }
 
-
-    attendance.verificationStatus =
-        "Verified";
-
+    attendance.verificationStatus = "Verified";
 
     // ========================================================
     // VERIFICATION SESSION
     // ========================================================
 
-    if (
-        verification.verificationSessionId
-    ) {
-
-        attendance.verificationSessionId =
-            verification.verificationSessionId;
+    if (verification.verificationSessionId) {
+        attendance.verificationSessionId = verification.verificationSessionId;
     }
-
 
     if (syncEventId) {
         attendance.syncEventId = syncEventId;
@@ -544,6 +572,5 @@ export async function createCheckOut({
 
     await attendance.save();
 
-
-    return attendance;
+    return formatAttendanceRecord(attendance);
 }

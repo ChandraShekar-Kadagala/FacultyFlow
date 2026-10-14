@@ -35,7 +35,30 @@ const attendancePolicySchema =
 
 
             // ------------------------------------------------
-            // CHECK-IN START
+            // ATTENDANCE MODE (FLEXIBLE vs SCHEDULED)
+            // ------------------------------------------------
+
+            attendanceMode: {
+
+                type:
+                    String,
+
+                enum: [
+                    "FLEXIBLE",
+                    "SCHEDULED"
+                ],
+
+                default:
+                    "FLEXIBLE",
+
+                trim:
+                    true
+
+            },
+
+
+            // ------------------------------------------------
+            // CHECK-IN START (OPTIONAL FOR FLEXIBLE MODE)
             // ------------------------------------------------
 
             startTime: {
@@ -44,24 +67,19 @@ const attendancePolicySchema =
                     String,
 
                 required:
-                    true,
+                    false,
+
+                default:
+                    null,
 
                 trim:
-                    true,
-
-                match: [
-
-                    /^([01]\d|2[0-3]):([0-5]\d)$/,
-
-                    "startTime must use HH:mm format."
-
-                ]
+                    true
 
             },
 
 
             // ------------------------------------------------
-            // CHECK-IN END
+            // CHECK-IN END (OPTIONAL FOR FLEXIBLE MODE)
             // ------------------------------------------------
 
             endTime: {
@@ -70,24 +88,19 @@ const attendancePolicySchema =
                     String,
 
                 required:
-                    true,
+                    false,
+
+                default:
+                    null,
 
                 trim:
-                    true,
-
-                match: [
-
-                    /^([01]\d|2[0-3]):([0-5]\d)$/,
-
-                    "endTime must use HH:mm format."
-
-                ]
+                    true
 
             },
 
 
             // ------------------------------------------------
-            // GRACE PERIOD
+            // GRACE PERIOD (OPTIONAL)
             // ------------------------------------------------
 
             gracePeriod: {
@@ -96,7 +109,7 @@ const attendancePolicySchema =
                     Number,
 
                 required:
-                    true,
+                    false,
 
                 min:
                     0,
@@ -108,7 +121,7 @@ const attendancePolicySchema =
 
 
             // ------------------------------------------------
-            // LATE THRESHOLD
+            // LATE THRESHOLD (OPTIONAL)
             // ------------------------------------------------
 
             lateThreshold: {
@@ -117,7 +130,7 @@ const attendancePolicySchema =
                     Number,
 
                 required:
-                    true,
+                    false,
 
                 min:
                     0,
@@ -129,7 +142,7 @@ const attendancePolicySchema =
 
 
             // ------------------------------------------------
-            // EARLY EXIT THRESHOLD
+            // EARLY EXIT THRESHOLD (OPTIONAL)
             // ------------------------------------------------
 
             earlyExitThreshold: {
@@ -138,7 +151,28 @@ const attendancePolicySchema =
                     Number,
 
                 required:
-                    true,
+                    false,
+
+                min:
+                    0,
+
+                default:
+                    0
+
+            },
+
+
+            // ------------------------------------------------
+            // MINIMUM WORKING HOURS (OPTIONAL)
+            // ------------------------------------------------
+
+            minWorkingHours: {
+
+                type:
+                    Number,
+
+                required:
+                    false,
 
                 min:
                     0,

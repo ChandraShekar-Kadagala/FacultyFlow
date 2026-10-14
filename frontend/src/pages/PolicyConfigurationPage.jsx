@@ -33,16 +33,23 @@ function mapBackendPolicyToForm(
     const requiredSignals =
         backendPolicy?.requiredSignals || [];
 
+    const attendanceMode =
+        backendPolicy?.attendanceMode ||
+        (requiredSignals.includes("SCHEDULE") ? "SCHEDULED" : "FLEXIBLE");
 
     return {
 
         // ----------------------------------------------------
-        // POLICY ID
+        // POLICY ID & MODE
         // ----------------------------------------------------
 
         policyId:
             backendPolicy?.policyId || null,
 
+        attendanceMode,
+
+        minWorkingHours:
+            backendPolicy?.minWorkingHours ?? 8,
 
         // ----------------------------------------------------
         // ATTENDANCE WINDOW
@@ -188,10 +195,11 @@ function mapFormPolicyToBackend(
 
 
     // --------------------------------------------------------
-    // SCHEDULE
+    // SCHEDULE (Only when scheduled mode is active or explicitly checked)
     // --------------------------------------------------------
 
     if (
+        policy.attendanceMode === "SCHEDULED" ||
         policy.scheduleVerification
     ) {
 
@@ -204,16 +212,19 @@ function mapFormPolicyToBackend(
 
     return {
 
+        attendanceMode:
+            policy.attendanceMode || "FLEXIBLE",
+
         startTime:
-            policy.checkInStartTime,
+            policy.checkInStartTime || null,
 
         endTime:
-            policy.checkInEndTime,
+            policy.checkInEndTime || null,
 
         gracePeriod:
-            Number(
-                policy.gracePeriodMinutes
-            ),
+            policy.gracePeriodMinutes !== "" && policy.gracePeriodMinutes !== undefined && policy.gracePeriodMinutes !== null
+                ? Number(policy.gracePeriodMinutes)
+                : 0,
 
         lateThreshold:
             Number(
@@ -223,6 +234,11 @@ function mapFormPolicyToBackend(
         earlyExitThreshold:
             Number(
                 policy.earlyExitThreshold || 0
+            ),
+
+        minWorkingHours:
+            Number(
+                policy.minWorkingHours || 0
             ),
 
         requiredSignals,
@@ -955,6 +971,23 @@ function PolicyConfigurationPage() {
 
 
                     {/* ------------------------------------------
+                        ATTENDANCE MODE
+                    ------------------------------------------ */}
+
+                    <div className="policy-current-card">
+
+                        <span>
+                            Attendance Mode
+                        </span>
+
+                        <strong>
+                            {policy?.attendanceMode === "SCHEDULED" ? "Scheduled Window" : "Flexible Attendance"}
+                        </strong>
+
+                    </div>
+
+
+                    {/* ------------------------------------------
                         CHECK-IN WINDOW
                     ------------------------------------------ */}
 
@@ -966,11 +999,9 @@ function PolicyConfigurationPage() {
 
                         <strong>
 
-                            {policy?.checkInStartTime}
-
-                            {" – "}
-
-                            {policy?.checkInEndTime}
+                            {policy?.attendanceMode === "SCHEDULED" || (policy?.checkInStartTime && policy?.checkInEndTime)
+                                ? `${policy?.checkInStartTime || "—"} – ${policy?.checkInEndTime || "—"}`
+                                : "Any time (Flexible)"}
 
                         </strong>
 
@@ -978,20 +1009,20 @@ function PolicyConfigurationPage() {
 
 
                     {/* ------------------------------------------
-                        GRACE PERIOD
+                        WORKING HOURS / GRACE PERIOD
                     ------------------------------------------ */}
 
                     <div className="policy-current-card">
 
                         <span>
-                            Grace Period
+                            {policy?.attendanceMode === "SCHEDULED" ? "Grace Period" : "Target Work Hours"}
                         </span>
 
                         <strong>
 
-                            {policy?.gracePeriodMinutes}
-
-                            {" minutes"}
+                            {policy?.attendanceMode === "SCHEDULED"
+                                ? `${policy?.gracePeriodMinutes || 0} minutes`
+                                : `${policy?.minWorkingHours || 8} hours`}
 
                         </strong>
 

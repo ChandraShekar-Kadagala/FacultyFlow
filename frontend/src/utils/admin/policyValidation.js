@@ -10,12 +10,16 @@ export function validatePolicy(policy) {
         };
     }
 
-    if (!policy.checkInStartTime) {
-        errors.checkInStartTime = "Check-in start time is required.";
-    }
+    const isScheduledMode = policy.attendanceMode === "SCHEDULED" || Boolean(policy.scheduleVerification);
 
-    if (!policy.checkInEndTime) {
-        errors.checkInEndTime = "Check-in end time is required.";
+    if (isScheduledMode) {
+        if (!policy.checkInStartTime) {
+            errors.checkInStartTime = "Check-in start time is required when scheduled mode is enabled.";
+        }
+
+        if (!policy.checkInEndTime) {
+            errors.checkInEndTime = "Check-in end time is required when scheduled mode is enabled.";
+        }
     }
 
     if (
@@ -27,17 +31,16 @@ export function validatePolicy(policy) {
     }
 
     if (
-        policy.gracePeriodMinutes === "" ||
-        policy.gracePeriodMinutes === null ||
-        policy.gracePeriodMinutes === undefined
+        policy.gracePeriodMinutes !== "" &&
+        policy.gracePeriodMinutes !== null &&
+        policy.gracePeriodMinutes !== undefined
     ) {
-        errors.gracePeriodMinutes = "Grace period is required.";
-    } else if (
-        isNaN(Number(policy.gracePeriodMinutes)) ||
-        Number(policy.gracePeriodMinutes) < 0 ||
-        Number(policy.gracePeriodMinutes) > 120
-    ) {
-        errors.gracePeriodMinutes = "Grace period must be between 0 and 120 minutes.";
+        const grace = Number(policy.gracePeriodMinutes);
+        if (isNaN(grace) || grace < 0 || grace > 120) {
+            errors.gracePeriodMinutes = "Grace period must be between 0 and 120 minutes.";
+        }
+    } else if (isScheduledMode) {
+        errors.gracePeriodMinutes = "Grace period is required when scheduled mode is enabled.";
     }
 
     if (
@@ -59,6 +62,17 @@ export function validatePolicy(policy) {
         const early = Number(policy.earlyExitThreshold);
         if (isNaN(early) || early < 0 || early > 720) {
             errors.earlyExitThreshold = "Early exit threshold must be between 0 and 720 minutes.";
+        }
+    }
+
+    if (
+        policy.minWorkingHours !== undefined &&
+        policy.minWorkingHours !== null &&
+        policy.minWorkingHours !== ""
+    ) {
+        const hours = Number(policy.minWorkingHours);
+        if (isNaN(hours) || hours < 0 || hours > 24) {
+            errors.minWorkingHours = "Minimum working hours must be between 0 and 24.";
         }
     }
 

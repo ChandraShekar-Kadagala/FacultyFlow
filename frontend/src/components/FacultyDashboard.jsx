@@ -14,6 +14,7 @@ import {
     checkOutAttendance
 } from "../services/attendance/attendanceService";
 import VerificationStatusCard from "../components/verification/VerificationStatusCard";
+import { calculateWorkingDuration } from "../utils/durationUtils";
 
 function formatTime(value) {
     if (!value) return "--:--";
@@ -125,11 +126,26 @@ function FacultyDashboard() {
         loadTodayAttendance();
     }, [loadTodayAttendance]);
 
+    const [now, setNow] = useState(Date.now());
+
+    useEffect(() => {
+        if (!attendance?.checkInTime || attendance?.checkOutTime) return;
+        const interval = setInterval(() => {
+            setNow(Date.now());
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [attendance?.checkInTime, attendance?.checkOutTime]);
+
+    const durationInfo = useMemo(() => {
+        if (!attendance?.checkInTime) return null;
+        return calculateWorkingDuration(attendance.checkInTime, attendance.checkOutTime, { currentTime: now });
+    }, [attendance?.checkInTime, attendance?.checkOutTime, now]);
+
     // Attendance state machine computation
     const attendanceStatus = useMemo(() => {
         if (!attendance) return "Not Checked In";
-        if (attendance.checkOutTime) return "Checked Out";
-        if (attendance.checkInTime) return attendance.status || "Present";
+        if (attendance.checkOutTime) return attendance.status || "Completed";
+        if (attendance.checkInTime) return "Session in progress";
         return "Not Checked In";
     }, [attendance]);
 
@@ -232,9 +248,9 @@ function FacultyDashboard() {
                         📅 {formatDate(attendance?.date)}
                     </div>
                     <span className={`status-pill ${
-                        attendanceStatus === "Present"
+                        attendanceStatus === "Present" || attendanceStatus === "Session in progress"
                             ? "status-present"
-                            : attendanceStatus === "Checked Out"
+                            : attendanceStatus === "Completed" || attendanceStatus === "Checked Out"
                                 ? "status-checkout"
                                 : "status-pending"
                     }`}>
@@ -296,6 +312,22 @@ function FacultyDashboard() {
                     <div>
                         <span>Check Out</span>
                         <strong>{attendanceLoading ? "..." : formatTime(attendance?.checkOutTime)}</strong>
+                    </div>
+                </div>
+
+                <div className="summary-card">
+                    <div className="summary-icon cyan">⏱️</div>
+                    <div>
+                        <span>Working Duration</span>
+                        <strong style={{ color: attendance?.checkOutTime ? "#4ade80" : attendance?.checkInTime ? "#38bdf8" : "inherit" }}>
+                            {attendanceLoading
+                                ? "..."
+                                : attendance?.checkOutTime
+                                    ? (attendance?.workingDurationFormatted || durationInfo?.formatted || "—")
+                                    : attendance?.checkInTime
+                                        ? `${durationInfo?.formatted || "< 1 min"} (live)`
+                                        : "—"}
+                        </strong>
                     </div>
                 </div>
 
@@ -374,10 +406,10 @@ function FacultyDashboard() {
                     {canCheckOut && (
                         <div className="attendance-state-banner state-checked-in">
                             <div className="state-content">
-                                <span className="state-badge badge-active">CHECKED IN ACTIVE</span>
+                                <span className="state-badge badge-active">SESSION IN PROGRESS</span>
                                 <h3>Checked In at {formatTime(attendance?.checkInTime)}</h3>
                                 <p>
-                                    Your attendance session is active. When you finish your workday or classes, submit your check-out below to finalize duration.
+                                    Live Session Elapsed: <strong style={{ color: "#38bdf8" }}>{durationInfo?.formatted || "< 1 min"}</strong> (live). When you finish your workday or duties, submit check-out below to finalize duration.
                                 </p>
                             </div>
                             <div className="state-action-wrap">
@@ -415,7 +447,7 @@ function FacultyDashboard() {
                                 <span className="state-badge badge-success">✓ COMPLETED</span>
                                 <h3>Today's Attendance Complete</h3>
                                 <p>
-                                    Checked in at <strong>{formatTime(attendance.checkInTime)}</strong> &bull; Checked out at <strong>{formatTime(attendance.checkOutTime)}</strong>. No further actions required today.
+                                    Checked in at <strong>{formatTime(attendance.checkInTime)}</strong> &bull; Checked out at <strong>{formatTime(attendance.checkOutTime)}</strong> &bull; Total Working Duration: <strong style={{ color: "#4ade80" }}>{attendance.workingDurationFormatted || durationInfo?.formatted || "—"}</strong>.
                                 </p>
                             </div>
                             <div className="state-action-wrap">
@@ -435,6 +467,16 @@ function FacultyDashboard() {
                         <div className="meta-item">
                             <span>Campus Date</span>
                             <strong>{attendance?.date || formatDate(new Date())}</strong>
+                        </div>
+                        <div className="meta-item">
+                            <span>Working Duration</span>
+                            <strong style={{ color: attendance?.checkOutTime ? "#4ade80" : attendance?.checkInTime ? "#38bdf8" : "inherit" }}>
+                                {attendance?.checkOutTime
+                                    ? (attendance?.workingDurationFormatted || durationInfo?.formatted || "—")
+                                    : attendance?.checkInTime
+                                        ? `${durationInfo?.formatted || "< 1 min"} (live)`
+                                        : "—"}
+                            </strong>
                         </div>
                         <div className="meta-item">
                             <span>Attendance ID</span>

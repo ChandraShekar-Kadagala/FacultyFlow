@@ -23,6 +23,8 @@ const STATUS_OPTIONS = [
 
     "Present",
 
+    "Completed",
+
     "Late",
 
     "Absent",
@@ -513,6 +515,10 @@ function AttendanceManagementPage() {
                                 </th>
 
                                 <th>
+                                    Working Duration
+                                </th>
+
+                                <th>
                                     Status
                                 </th>
 
@@ -541,7 +547,7 @@ function AttendanceManagementPage() {
                                 <tr>
 
                                     <td
-                                        colSpan="8"
+                                        colSpan="9"
                                         className="empty-table"
                                     >
 
@@ -677,6 +683,26 @@ function AttendanceManagementPage() {
                                                 </td>
 
 
+                                                {/* WORKING DURATION */}
+
+                                                <td>
+
+                                                    {record.checkOutTime ? (
+                                                        <span style={{ fontWeight: 600 }}>
+                                                            {record.workingDurationFormatted || "—"}
+                                                        </span>
+                                                    ) : record.checkInTime ? (
+                                                        <span style={{ color: "#38bdf8", display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.85rem" }}>
+                                                            <span style={{ width: "7px", height: "7px", borderRadius: "50%", backgroundColor: "#38bdf8", display: "inline-block" }}></span>
+                                                            {record.elapsedFormatted || "< 1 min"} (live)
+                                                        </span>
+                                                    ) : (
+                                                        "—"
+                                                    )}
+
+                                                </td>
+
+
                                                 {/* STATUS */}
 
                                                 <td>
@@ -756,7 +782,7 @@ function AttendanceManagementPage() {
                                     <tr>
 
                                         <td
-                                            colSpan="8"
+                                            colSpan="9"
                                             className="empty-table"
                                         >
 

@@ -77,11 +77,16 @@ router.get(
             return res.status(200).json({
                 success: true,
                 policy: {
-                    startTime: policy.startTime,
-                    endTime: policy.endTime,
-                    gracePeriod: policy.gracePeriod,
-                    lateThreshold: policy.lateThreshold,
+                    attendanceMode: policy.attendanceMode || "FLEXIBLE",
+                    startTime: policy.startTime || null,
+                    endTime: policy.endTime || null,
+                    gracePeriod: policy.gracePeriod || 0,
+                    lateThreshold: policy.lateThreshold || 0,
+                    earlyExitThreshold: policy.earlyExitThreshold || 0,
+                    minWorkingHours: policy.minWorkingHours || 0,
                     requiredSignals: policy.requiredSignals,
+                    timezone: policy.timezone || "Asia/Kolkata",
+                    allowedDays: policy.allowedDays || [],
                     active: policy.active
                 }
             });

@@ -2,6 +2,8 @@ import AttendanceRecord from "../../models/AttendanceRecord.js";
 
 import Faculty from "../../models/Faculty.js";
 
+import { calculateWorkingDuration } from "../../utils/attendance/durationUtils.js";
+
 
 // ============================================================
 // GET ALL ATTENDANCE
@@ -284,29 +286,36 @@ async function populateFacultyForRecords(records) {
         )
     ];
 
-    if (facultyIds.length === 0) {
-        return records;
+    const facultyMap = new Map();
+    if (facultyIds.length > 0) {
+        const facultyList = await Faculty.find({
+            $or: [
+                { facultyId: { $in: facultyIds } },
+                { userId: { $in: facultyIds } },
+                { employeeCode: { $in: facultyIds } }
+            ]
+        }).lean();
+
+        facultyList.forEach(f => {
+            if (f.facultyId) facultyMap.set(f.facultyId, f);
+            if (f.userId) facultyMap.set(f.userId, f);
+            if (f.employeeCode) facultyMap.set(f.employeeCode, f);
+        });
     }
 
-    const facultyList = await Faculty.find({
-        $or: [
-            { facultyId: { $in: facultyIds } },
-            { userId: { $in: facultyIds } },
-            { employeeCode: { $in: facultyIds } }
-        ]
-    }).lean();
-
-    const facultyMap = new Map();
-    facultyList.forEach(f => {
-        if (f.facultyId) facultyMap.set(f.facultyId, f);
-        if (f.userId) facultyMap.set(f.userId, f);
-        if (f.employeeCode) facultyMap.set(f.employeeCode, f);
+    return records.map(record => {
+        const duration = calculateWorkingDuration(record.checkInTime, record.checkOutTime);
+        return {
+            ...record,
+            faculty: facultyMap.get(record.facultyId) || null,
+            workingDurationMinutes: record.workingDurationMinutes ?? (record.checkOutTime ? duration.minutes : null),
+            workingDurationFormatted: record.workingDurationFormatted || (record.checkOutTime ? duration.formatted : null),
+            workingDurationCompact: duration.formattedCompact,
+            isOngoing: duration.isOngoing,
+            elapsedMinutes: duration.minutes,
+            elapsedFormatted: duration.formatted
+        };
     });
-
-    return records.map(record => ({
-        ...record,
-        faculty: facultyMap.get(record.facultyId) || null
-    }));
 }
 
 

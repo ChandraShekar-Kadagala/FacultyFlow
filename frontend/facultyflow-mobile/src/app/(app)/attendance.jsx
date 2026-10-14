@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     ActivityIndicator,
     RefreshControl,
@@ -14,6 +14,7 @@ import { router } from "expo-router";
 import { useAttendance } from "../../context/AttendanceContext";
 import SyncStatus from "../../components/SyncStatus";
 import CheckInVerificationModal from "../../components/CheckInVerificationModal";
+import { calculateWorkingDuration } from "../../services/attendance/durationUtils";
 
 function formatTimeString(isoString) {
     if (!isoString) return "—";
@@ -48,12 +49,22 @@ export default function AttendanceScreen() {
         isCheckedOut,
         canCheckIn,
         canCheckOut,
-        attendanceStatus,
         verificationStatus,
         refreshAttendance,
         performCheckOut,
         clearMessages
     } = useAttendance();
+
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        if (!isCheckedIn || isCheckedOut) return;
+        const interval = setInterval(() => setTick((t) => t + 1), 10000);
+        return () => clearInterval(interval);
+    }, [isCheckedIn, isCheckedOut]);
+
+    const durationInfo = attendance?.checkInTime
+        ? calculateWorkingDuration(attendance.checkInTime, attendance.checkOutTime)
+        : null;
 
     const isVerified = verificationStatus === "Verified" || verificationStatus === "VERIFIED";
     const [verificationModalVisible, setVerificationModalVisible] = useState(false);
@@ -118,16 +129,22 @@ export default function AttendanceScreen() {
                     <View style={[
                         styles.statusPill,
                         attendance?.syncStatus === "PENDING_SYNC" ? styles.amberPill :
-                        attendanceStatus === "Present" ? styles.greenPill :
-                        attendanceStatus === "Late" ? styles.amberPill : styles.grayPill
+                        isCheckedOut ? styles.greenPill :
+                        isCheckedIn ? styles.bluePill : styles.grayPill
                     ]}>
                         <Text style={[
                             styles.statusPillText,
                             attendance?.syncStatus === "PENDING_SYNC" ? styles.amberPillText :
-                            attendanceStatus === "Present" ? styles.greenPillText :
-                            attendanceStatus === "Late" ? styles.amberPillText : styles.grayPillText
+                            isCheckedOut ? styles.greenPillText :
+                            isCheckedIn ? styles.bluePillText : styles.grayPillText
                         ]}>
-                            {attendance?.syncStatus === "PENDING_SYNC" ? "PENDING SYNC" : attendanceStatus.toUpperCase()}
+                            {attendance?.syncStatus === "PENDING_SYNC"
+                                ? "PENDING SYNC"
+                                : isCheckedOut
+                                    ? "COMPLETED"
+                                    : isCheckedIn
+                                        ? "SESSION ACTIVE"
+                                        : "NOT CHECKED IN"}
                         </Text>
                     </View>
                 </View>
@@ -141,7 +158,7 @@ export default function AttendanceScreen() {
                             <Ionicons name="log-in-outline" size={18} color="#2563EB" />
                         </View>
                         <View>
-                            <Text style={styles.timeBoxLabel}>Check-In Time</Text>
+                            <Text style={styles.timeBoxLabel}>Check In</Text>
                             <Text style={styles.timeBoxValue}>{formatTimeString(attendance?.checkInTime)}</Text>
                         </View>
                     </View>
@@ -151,8 +168,26 @@ export default function AttendanceScreen() {
                             <Ionicons name="log-out-outline" size={18} color={isCheckedOut ? "#D97706" : "#94A3B8"} />
                         </View>
                         <View>
-                            <Text style={styles.timeBoxLabel}>Check-Out Time</Text>
-                            <Text style={styles.timeBoxValue}>{formatTimeString(attendance?.checkOutTime)}</Text>
+                            <Text style={styles.timeBoxLabel}>Check Out</Text>
+                            <Text style={styles.timeBoxValue}>
+                                {isCheckedOut ? formatTimeString(attendance?.checkOutTime) : "In Progress"}
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.timeBox}>
+                        <View style={[styles.timeIconWrap, { backgroundColor: isCheckedOut ? "#DCFCE7" : isCheckedIn ? "#EFF6FF" : "#F1F5F9" }]}>
+                            <Ionicons name="time-outline" size={18} color={isCheckedOut ? "#16A34A" : isCheckedIn ? "#2563EB" : "#94A3B8"} />
+                        </View>
+                        <View>
+                            <Text style={styles.timeBoxLabel}>{isCheckedOut ? "Duration" : "Live Elapsed"}</Text>
+                            <Text style={[styles.timeBoxValue, { color: isCheckedOut ? "#16A34A" : isCheckedIn ? "#2563EB" : "#0F172A" }]}>
+                                {isCheckedOut
+                                    ? (attendance?.workingDurationFormatted || durationInfo?.formatted || "—")
+                                    : isCheckedIn
+                                        ? `${durationInfo?.formatted || "< 1 min"}`
+                                        : "—"}
+                            </Text>
                         </View>
                     </View>
                 </View>
@@ -228,7 +263,7 @@ export default function AttendanceScreen() {
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.allDoneTitle}>Attendance Completed</Text>
                                 <Text style={styles.allDoneSubtitle}>
-                                    Both check-in and check-out have been recorded for today.
+                                    Attendance cycle completed &bull; Duration: {attendance?.workingDurationFormatted || durationInfo?.formatted || "—"}.
                                 </Text>
                             </View>
                         </View>
@@ -380,6 +415,12 @@ const styles = StyleSheet.create({
     greenPillText: {
         color: "#15803D"
     },
+    bluePill: {
+        backgroundColor: "#DBEAFE"
+    },
+    bluePillText: {
+        color: "#1D4ED8"
+    },
     amberPill: {
         backgroundColor: "#FEF3C7"
     },
@@ -400,27 +441,27 @@ const styles = StyleSheet.create({
     timestampsGrid: {
         flexDirection: "row",
         justifyContent: "space-between",
-        gap: 12,
+        gap: 8,
         marginBottom: 16
     },
     timeBox: {
         flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
+        flexDirection: "column",
+        alignItems: "flex-start",
         backgroundColor: "#F8FAFC",
-        borderRadius: 12,
-        padding: 12,
+        borderRadius: 10,
+        padding: 10,
         borderWidth: 1,
         borderColor: "#E2E8F0"
     },
     timeIconWrap: {
-        width: 34,
-        height: 34,
-        borderRadius: 8,
+        width: 28,
+        height: 28,
+        borderRadius: 6,
         backgroundColor: "#EFF6FF",
         alignItems: "center",
         justifyContent: "center",
-        marginRight: 10
+        marginBottom: 6
     },
     timeBoxLabel: {
         fontSize: 11,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     ActivityIndicator,
     RefreshControl,
@@ -15,6 +15,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useAttendance } from "../../context/AttendanceContext";
 import SyncStatus from "../../components/SyncStatus";
 import CheckInVerificationModal from "../../components/CheckInVerificationModal";
+import { calculateWorkingDuration } from "../../services/attendance/durationUtils";
 
 function formatTimeString(isoString) {
     if (!isoString) return "—";
@@ -50,12 +51,22 @@ export default function HomeScreen() {
         isCheckedOut,
         canCheckIn,
         canCheckOut,
-        attendanceStatus,
         verificationStatus,
         refreshAttendance,
         performCheckOut,
         clearMessages
     } = useAttendance();
+
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        if (!isCheckedIn || isCheckedOut) return;
+        const interval = setInterval(() => setTick((t) => t + 1), 10000);
+        return () => clearInterval(interval);
+    }, [isCheckedIn, isCheckedOut]);
+
+    const durationInfo = attendance?.checkInTime
+        ? calculateWorkingDuration(attendance.checkInTime, attendance.checkOutTime)
+        : null;
 
     const isVerified = verificationStatus === "Verified" || verificationStatus === "VERIFIED";
     const [verificationModalVisible, setVerificationModalVisible] = useState(false);
@@ -146,15 +157,19 @@ export default function HomeScreen() {
                             styles.badge,
                             attendance?.syncStatus === "PENDING_SYNC"
                                 ? styles.amberBadge
-                                : attendanceStatus === "Present" ? styles.greenBadge : styles.amberBadge
+                                : isCheckedOut ? styles.greenBadge : styles.blueBadge
                         ]}>
                             <Text style={[
                                 styles.badgeText,
                                 attendance?.syncStatus === "PENDING_SYNC"
                                     ? styles.amberBadgeText
-                                    : attendanceStatus === "Present" ? styles.greenBadgeText : styles.amberBadgeText
+                                    : isCheckedOut ? styles.greenBadgeText : styles.blueBadgeText
                             ]}>
-                                {attendance?.syncStatus === "PENDING_SYNC" ? "PENDING SYNC" : attendanceStatus.toUpperCase()}
+                                {attendance?.syncStatus === "PENDING_SYNC"
+                                    ? "PENDING SYNC"
+                                    : isCheckedOut
+                                        ? "COMPLETED"
+                                        : "SESSION ACTIVE"}
                             </Text>
                         </View>
                     ) : (
@@ -209,18 +224,33 @@ export default function HomeScreen() {
                     <>
                         <View style={styles.timeRow}>
                             <View style={styles.timeCol}>
-                                <Text style={styles.timeLabel}>Check-In Time</Text>
+                                <Text style={styles.timeLabel}>Check In</Text>
                                 <Text style={styles.timeValue}>
                                     {formatTimeString(attendance?.checkInTime)}
                                 </Text>
                             </View>
 
                             <View style={styles.timeCol}>
-                                <Text style={styles.timeLabel}>Check-Out Time</Text>
+                                <Text style={styles.timeLabel}>Check Out</Text>
                                 <Text style={styles.timeValue}>
                                     {isCheckedOut
                                         ? formatTimeString(attendance?.checkOutTime)
-                                        : "Pending"
+                                        : "In Progress"
+                                    }
+                                </Text>
+                            </View>
+
+                            <View style={styles.timeCol}>
+                                <Text style={styles.timeLabel}>
+                                    {isCheckedOut ? "Duration" : "Live Elapsed"}
+                                </Text>
+                                <Text style={[
+                                    styles.timeValue,
+                                    { color: isCheckedOut ? "#16A34A" : "#2563EB" }
+                                ]}>
+                                    {isCheckedOut
+                                        ? (attendance?.workingDurationFormatted || durationInfo?.formatted || "—")
+                                        : `${durationInfo?.formatted || "< 1 min"}`
                                     }
                                 </Text>
                             </View>
@@ -254,7 +284,7 @@ export default function HomeScreen() {
                                 <View style={styles.completedNotice}>
                                     <Ionicons name="checkmark-done-circle" size={20} color="#16A34A" style={{ marginRight: 8 }} />
                                     <Text style={styles.completedNoticeText}>
-                                        Attendance cycle completed for today.
+                                        Attendance cycle completed ({attendance?.workingDurationFormatted || durationInfo?.formatted || "—"}).
                                     </Text>
                                 </View>
                             ) : (
@@ -483,6 +513,12 @@ const styles = StyleSheet.create({
     },
     greenBadgeText: {
         color: "#15803D"
+    },
+    blueBadge: {
+        backgroundColor: "#DBEAFE"
+    },
+    blueBadgeText: {
+        color: "#1D4ED8"
     },
     amberBadge: {
         backgroundColor: "#FEF3C7"

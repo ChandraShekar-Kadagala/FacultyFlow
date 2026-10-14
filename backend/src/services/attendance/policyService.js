@@ -14,9 +14,7 @@ const DEFAULT_REQUIRED_TYPES = [
 
     VERIFICATION_TYPES.IDENTITY,
 
-    VERIFICATION_TYPES.LOCATION,
-
-    VERIFICATION_TYPES.SCHEDULE
+    VERIFICATION_TYPES.LOCATION
 
 ];
 
@@ -412,86 +410,56 @@ function normalizePolicyInput(
 
 
     // --------------------------------------------------------
-    // TIME
+    // TIME (OPTIONAL IN FLEXIBLE MODE)
     // --------------------------------------------------------
 
+    let startTime = null;
+    let endTime = null;
+
     if (
-        !isValidTime(
-            source.startTime
-        )
+        source.startTime !== undefined &&
+        source.startTime !== null &&
+        typeof source.startTime === "string" &&
+        source.startTime.trim() !== ""
     ) {
-
-        const error =
-            new Error(
-                "startTime must use HH:mm format."
-            );
-
-        error.statusCode =
-            400;
-
-        error.code =
-            "INVALID_START_TIME";
-
-        throw error;
-
+        const trimmedStart = source.startTime.trim();
+        if (isValidTime(trimmedStart)) {
+            startTime = trimmedStart;
+        } else if (source.attendanceMode === "SCHEDULED") {
+            const error = new Error("startTime must use HH:mm format.");
+            error.statusCode = 400;
+            error.code = "INVALID_START_TIME";
+            throw error;
+        }
     }
 
-
     if (
-        !isValidTime(
-            source.endTime
-        )
+        source.endTime !== undefined &&
+        source.endTime !== null &&
+        typeof source.endTime === "string" &&
+        source.endTime.trim() !== ""
     ) {
-
-        const error =
-            new Error(
-                "endTime must use HH:mm format."
-            );
-
-        error.statusCode =
-            400;
-
-        error.code =
-            "INVALID_END_TIME";
-
-        throw error;
-
+        const trimmedEnd = source.endTime.trim();
+        if (isValidTime(trimmedEnd)) {
+            endTime = trimmedEnd;
+        } else if (source.attendanceMode === "SCHEDULED") {
+            const error = new Error("endTime must use HH:mm format.");
+            error.statusCode = 400;
+            error.code = "INVALID_END_TIME";
+            throw error;
+        }
     }
 
+    if (startTime && endTime) {
+        const startMinutes = timeToMinutes(startTime);
+        const endMinutes = timeToMinutes(endTime);
 
-    const startMinutes =
-        timeToMinutes(
-            source.startTime
-        );
-
-    const endMinutes =
-        timeToMinutes(
-            source.endTime
-        );
-
-
-    // --------------------------------------------------------
-    // SAME-DAY POLICY WINDOW
-    // --------------------------------------------------------
-
-    if (
-        endMinutes <=
-        startMinutes
-    ) {
-
-        const error =
-            new Error(
-                "endTime must be later than startTime."
-            );
-
-        error.statusCode =
-            400;
-
-        error.code =
-            "INVALID_POLICY_TIME_RANGE";
-
-        throw error;
-
+        if (endMinutes <= startMinutes && source.attendanceMode === "SCHEDULED") {
+            const error = new Error("endTime must be later than startTime.");
+            error.statusCode = 400;
+            error.code = "INVALID_POLICY_TIME_RANGE";
+            throw error;
+        }
     }
 
 
@@ -555,35 +523,36 @@ function normalizePolicyInput(
         );
 
 
+    const isScheduleEnabled =
+        requiredSignals.includes("SCHEDULE");
+
+    const attendanceMode =
+        source.attendanceMode === "SCHEDULED" ||
+        (isScheduleEnabled && source.attendanceMode !== "FLEXIBLE")
+            ? "SCHEDULED"
+            : "FLEXIBLE";
+
+    const minWorkingHours =
+        normalizeNonNegativeNumber(
+            source.minWorkingHours,
+            "minWorkingHours"
+        );
+
     return {
-
-        startTime:
-            source.startTime,
-
-        endTime:
-            source.endTime,
-
-        gracePeriod:
-            gracePeriod ?? 0,
-
-        lateThreshold:
-            lateThreshold ?? 0,
-
-        earlyExitThreshold:
-            earlyExitThreshold ?? 0,
-
+        attendanceMode,
+        startTime,
+        endTime,
+        gracePeriod: gracePeriod ?? 0,
+        lateThreshold: lateThreshold ?? 0,
+        earlyExitThreshold: earlyExitThreshold ?? 0,
+        minWorkingHours: minWorkingHours ?? 0,
         requiredSignals,
-
         timezone:
             typeof source.timezone === "string" && source.timezone.trim()
                 ? source.timezone.trim()
                 : "Asia/Kolkata",
-
-        active:
-            active ?? true
-
+        active: active ?? true
     };
-
 }
 
 
@@ -1019,6 +988,9 @@ export async function updateAttendancePolicy(
     // APPLY UPDATE
     // --------------------------------------------------------
 
+    existing.attendanceMode =
+        normalized.attendanceMode;
+
     existing.startTime =
         normalized.startTime;
 
@@ -1033,6 +1005,9 @@ export async function updateAttendancePolicy(
 
     existing.earlyExitThreshold =
         normalized.earlyExitThreshold;
+
+    existing.minWorkingHours =
+        normalized.minWorkingHours;
 
     existing.requiredSignals =
         normalized.requiredSignals;
@@ -1369,6 +1344,37 @@ export function evaluateCheckInPolicy({
     }
 
 
+    const timezone =
+        policy.timezone ||
+        process.env.INSTITUTIONAL_TIMEZONE ||
+        "Asia/Kolkata";
+
+    const isScheduleRequired =
+        Array.isArray(policy.requiredSignals) &&
+        policy.requiredSignals.includes("SCHEDULE");
+
+    const isScheduledMode =
+        policy.attendanceMode === "SCHEDULED" ||
+        (isScheduleRequired && policy.attendanceMode !== "FLEXIBLE");
+
+    // ========================================================
+    // FLEXIBLE ATTENDANCE (DEFAULT PRODUCT BEHAVIOR)
+    // ========================================================
+    if (!isScheduledMode) {
+        return {
+            allowed: true,
+            status: "Present",
+            policyState: "FLEXIBLE_DAY",
+            code: "ATTENDANCE_FLEXIBLE_TIME",
+            reason: "Flexible attendance check-in accepted.",
+            metadata: {
+                attendanceMode: "FLEXIBLE",
+                timezone,
+                serverTime: serverTime.toISOString()
+            }
+        };
+    }
+
     const startMinutes =
         timeToMinutes(
             policy.startTime
@@ -1379,33 +1385,24 @@ export function evaluateCheckInPolicy({
             policy.endTime
         );
 
-
     if (
         startMinutes === null
         ||
         endMinutes === null
     ) {
-
-        const error =
-            new Error(
-                "Attendance policy contains invalid time configuration."
-            );
-
-        error.statusCode =
-            500;
-
-        error.code =
-            "INVALID_ATTENDANCE_POLICY";
-
-        throw error;
-
+        return {
+            allowed: true,
+            status: "Present",
+            policyState: "FLEXIBLE_DAY",
+            code: "ATTENDANCE_FLEXIBLE_TIME",
+            reason: "Flexible attendance check-in accepted (schedule window not configured).",
+            metadata: {
+                attendanceMode: "FLEXIBLE",
+                timezone,
+                serverTime: serverTime.toISOString()
+            }
+        };
     }
-
-
-    const timezone =
-        policy.timezone ||
-        process.env.INSTITUTIONAL_TIMEZONE ||
-        "Asia/Kolkata";
 
     const currentMinutes =
         dateToMinutes(
@@ -1637,36 +1634,52 @@ export function evaluateCheckOutPolicy({
     }
 
 
+    const timezone =
+        policy.timezone ||
+        process.env.INSTITUTIONAL_TIMEZONE ||
+        "Asia/Kolkata";
+
+    const isScheduleRequired =
+        Array.isArray(policy.requiredSignals) &&
+        policy.requiredSignals.includes("SCHEDULE");
+
+    const isScheduledMode =
+        policy.attendanceMode === "SCHEDULED" ||
+        (isScheduleRequired && policy.attendanceMode !== "FLEXIBLE");
+
+    if (!isScheduledMode) {
+        return {
+            allowed: true,
+            earlyExit: false,
+            policyState: "NORMAL_EXIT",
+            reason: "Flexible attendance checkout recorded successfully.",
+            metadata: {
+                attendanceMode: "FLEXIBLE",
+                timezone,
+                serverTime: serverTime.toISOString()
+            }
+        };
+    }
+
     const endMinutes =
         timeToMinutes(
             policy.endTime
         );
 
-
     if (
         endMinutes === null
     ) {
-
-        const error =
-            new Error(
-                "Attendance policy contains invalid end time."
-            );
-
-        error.statusCode =
-            500;
-
-        error.code =
-            "INVALID_ATTENDANCE_POLICY";
-
-        throw error;
-
+        return {
+            allowed: true,
+            earlyExit: false,
+            policyState: "NORMAL_EXIT",
+            reason: "Attendance checkout completed.",
+            metadata: {
+                timezone,
+                serverTime: serverTime.toISOString()
+            }
+        };
     }
-
-
-    const timezone =
-        policy.timezone ||
-        process.env.INSTITUTIONAL_TIMEZONE ||
-        "Asia/Kolkata";
 
     const currentMinutes =
         dateToMinutes(

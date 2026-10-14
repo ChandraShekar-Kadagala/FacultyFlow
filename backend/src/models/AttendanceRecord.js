@@ -62,6 +62,26 @@ const attendanceRecordSchema =
         },
 
 
+        workingDurationMinutes: {
+
+            type: Number,
+
+            default: null
+
+        },
+
+
+        workingDurationFormatted: {
+
+            type: String,
+
+            default: null,
+
+            trim: true
+
+        },
+
+
         status: {
 
             type: String,
@@ -74,7 +94,9 @@ const attendanceRecordSchema =
 
                 "Absent",
 
-                "Incomplete"
+                "Incomplete",
+
+                "Completed"
 
             ],
 
