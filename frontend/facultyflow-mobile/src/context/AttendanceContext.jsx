@@ -220,18 +220,27 @@ export function AttendanceProvider({ children }) {
 
     // Initial load when user/token changes
     useEffect(() => {
-        if (accessToken) {
-            refreshAttendance(false);
-            refreshPendingCount();
-            fetchPolicy();
-        } else {
-            setAttendance(null);
-            setVerification(null);
-            setActivePolicy(null);
-            setError(null);
-            setSuccessMessage(null);
-            setPendingSyncCount(0);
-        }
+        let isMounted = true;
+        const initAttendance = async () => {
+            if (accessToken) {
+                await Promise.allSettled([
+                    refreshAttendance(false),
+                    refreshPendingCount(),
+                    fetchPolicy()
+                ]);
+            } else if (isMounted) {
+                setAttendance(null);
+                setVerification(null);
+                setActivePolicy(null);
+                setError(null);
+                setSuccessMessage(null);
+                setPendingSyncCount(0);
+            }
+        };
+        initAttendance();
+        return () => {
+            isMounted = false;
+        };
     }, [accessToken, currentUserId, refreshAttendance, refreshPendingCount, fetchPolicy]);
 
     // Monitor network connectivity and auto-trigger sync on reconnection
@@ -386,7 +395,7 @@ export function AttendanceProvider({ children }) {
 
 
     // Perform Check-Out (Online with Seamless Offline Fallback)
-    const performCheckOut = useCallback(async () => {
+    const performCheckOut = useCallback(async (verificationSignals = null) => {
         if (!accessToken || !currentUserId) {
             setError("You must be logged in to check out.");
             return { success: false, error: "Not authenticated" };
@@ -401,16 +410,25 @@ export function AttendanceProvider({ children }) {
         setSuccessMessage(null);
 
         try {
-            const [device, locationResult] = await Promise.all([
-                getDeviceSignal(),
-                getLocationSignal()
-            ]);
+            let payloadSignals;
+            if (verificationSignals && (verificationSignals.device || verificationSignals.location || verificationSignals.network)) {
+                payloadSignals = {
+                    device: verificationSignals.device || null,
+                    location: verificationSignals.location || null,
+                    network: verificationSignals.network || null
+                };
+            } else {
+                const [device, locationResult] = await Promise.all([
+                    getDeviceSignal(),
+                    getLocationSignal()
+                ]);
 
-            const payloadSignals = {
-                device,
-                location: locationResult?.signal || null,
-                network: null
-            };
+                payloadSignals = {
+                    device,
+                    location: locationResult?.signal || null,
+                    network: null
+                };
+            }
 
             const connected = await isNetworkConnected();
 

@@ -51,7 +51,6 @@ export default function AttendanceScreen() {
         canCheckOut,
         verificationStatus,
         refreshAttendance,
-        performCheckOut,
         clearMessages
     } = useAttendance();
 
@@ -68,6 +67,7 @@ export default function AttendanceScreen() {
 
     const isVerified = verificationStatus === "Verified" || verificationStatus === "VERIFIED";
     const [verificationModalVisible, setVerificationModalVisible] = useState(false);
+    const [verificationModalMode, setVerificationModalMode] = useState("check_in");
 
     return (
         <View style={styles.root}>
@@ -221,7 +221,10 @@ export default function AttendanceScreen() {
                     ) : !isCheckedIn ? (
                         <TouchableOpacity
                             style={[styles.primaryBtn, actionLoading && styles.btnDisabled]}
-                            onPress={() => setVerificationModalVisible(true)}
+                            onPress={() => {
+                                setVerificationModalMode("check_in");
+                                setVerificationModalVisible(true);
+                            }}
                             disabled={!canCheckIn}
                             activeOpacity={0.8}
                         >
@@ -241,7 +244,10 @@ export default function AttendanceScreen() {
                     ) : !isCheckedOut ? (
                         <TouchableOpacity
                             style={[styles.checkoutBtn, actionLoading && styles.btnDisabled]}
-                            onPress={performCheckOut}
+                            onPress={() => {
+                                setVerificationModalMode("check_out");
+                                setVerificationModalVisible(true);
+                            }}
                             disabled={!canCheckOut}
                             activeOpacity={0.8}
                         >
@@ -291,6 +297,7 @@ export default function AttendanceScreen() {
 
         <CheckInVerificationModal
             visible={verificationModalVisible}
+            mode={verificationModalMode}
             onClose={() => setVerificationModalVisible(false)}
             onComplete={() => {
                 setVerificationModalVisible(false);

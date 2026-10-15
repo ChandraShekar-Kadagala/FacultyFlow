@@ -75,7 +75,16 @@ export default function HistoryScreen() {
     }, [accessToken]);
 
     useEffect(() => {
-        loadHistory(false);
+        let isMounted = true;
+        const fetchHistory = async () => {
+            if (isMounted) {
+                await loadHistory(false);
+            }
+        };
+        fetchHistory();
+        return () => {
+            isMounted = false;
+        };
     }, [loadHistory]);
 
     const totalDays = records.length;

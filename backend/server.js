@@ -7,8 +7,13 @@ import {
     disconnectDatabase
 } from "./src/config/database.js";
 
+import {
+    reconcileOverdueSessions
+} from "./src/services/attendance/attendanceReconciliationService.js";
+
 
 let server;
+let reconciliationTimer;
 
 
 async function startServer() {
@@ -16,6 +21,29 @@ async function startServer() {
     try {
 
         await connectDatabase();
+
+        // Run reconciliation for any overdue open sessions on server launch
+        try {
+            const recon = await reconcileOverdueSessions();
+            if (recon?.reconciledCount > 0) {
+                console.log(`[Reconciliation] Closed ${recon.reconciledCount} overdue open sessions at startup.`);
+            }
+        } catch (reconErr) {
+            console.warn("[Reconciliation] Startup check warning:", reconErr.message);
+        }
+
+        // Periodic background reconciliation every 30 minutes
+        reconciliationTimer = setInterval(async () => {
+            try {
+                const recon = await reconcileOverdueSessions();
+                if (recon?.reconciledCount > 0) {
+                    console.log(`[Reconciliation] Periodic check closed ${recon.reconciledCount} overdue sessions.`);
+                }
+            } catch (err) {
+                console.warn("[Reconciliation] Periodic check error:", err.message);
+            }
+        }, 30 * 60 * 1000);
+        if (reconciliationTimer.unref) reconciliationTimer.unref();
 
         server =
             app.listen(
@@ -72,6 +100,10 @@ async function shutdown(signal) {
     console.log(
         `${signal} received. Shutting down...`
     );
+
+    if (reconciliationTimer) {
+        clearInterval(reconciliationTimer);
+    }
 
     if (server) {
 

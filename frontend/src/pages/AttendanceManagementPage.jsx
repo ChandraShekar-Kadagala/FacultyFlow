@@ -712,10 +712,13 @@ function AttendanceManagementPage() {
                                                             record.status
                                                                 ?.toLowerCase()
                                                         }`}
+                                                        title={record.autoClosed ? `Auto-Closed: ${record.closureReason || "End-of-day cutoff"}` : ""}
                                                     >
 
                                                         {
-                                                            record.status
+                                                            record.autoClosed
+                                                                ? `${record.status} (Auto-Closed)`
+                                                                : record.status
                                                         }
 
                                                     </span>

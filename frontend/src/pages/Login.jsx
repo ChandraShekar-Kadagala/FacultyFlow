@@ -10,38 +10,42 @@ function Login() {
 
     const { login } = useAuth();
     const navigate = useNavigate();
-async function handleSubmit(event) {
+    async function handleSubmit(event) {
+        event.preventDefault();
+        if (isSubmitting) return;
 
-    event.preventDefault();
+        setError("");
+        setIsSubmitting(true);
 
-    setError("");
+        try {
+            const result = await login(
+                email.trim(),
+                password
+            );
 
-    const result =
-        await login(
-            email,
-            password
-        );
+            if (!result.success) {
+                setError(
+                    result.message || "Invalid email or password."
+                );
+                return;
+            }
 
-
-    if (!result.success) {
-
-        setError(
-            result.message
-        );
-
-        return;
-    }
-
-
-    navigate(
-        result.user.role === "admin"
-            ? "/admin"
-            : "/faculty",
-        {
-            replace: true
+            navigate(
+                result.user.role === "admin"
+                    ? "/admin"
+                    : "/faculty",
+                {
+                    replace: true
+                }
+            );
+        } catch (err) {
+            setError(
+                err.message || "Unable to sign in. Please verify your connection."
+            );
+        } finally {
+            setIsSubmitting(false);
         }
-    );
-}
+    }
     function fillDemoAccount(type) {
         if (type === "faculty") {
             setEmail("faculty@facultyflow.com");
@@ -101,6 +105,7 @@ async function handleSubmit(event) {
                             onChange={event =>
                                 setEmail(event.target.value)
                             }
+                            disabled={isSubmitting}
                             required
                         />
                     </div>
@@ -121,6 +126,7 @@ async function handleSubmit(event) {
                             onChange={event =>
                                 setPassword(event.target.value)
                             }
+                            disabled={isSubmitting}
                             required
                         />
                     </div>

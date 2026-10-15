@@ -31,13 +31,16 @@ import {
 import { verifyNetwork } from "../services/verification/networkService";
 import { getActiveCampusNetworks } from "../services/attendance/attendanceApi";
 
-export default function CheckInVerificationModal({ visible, onClose, onComplete }) {
+export default function CheckInVerificationModal({ visible, onClose, onComplete, mode = "check_in" }) {
     const { user, accessToken } = useAuth();
     const {
         activePolicy,
         fetchPolicy,
-        performCheckIn
+        performCheckIn,
+        performCheckOut
     } = useAttendance();
+
+    const isCheckOut = mode === "check_out";
 
     const [steps, setSteps] = useState([]);
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -417,7 +420,9 @@ export default function CheckInVerificationModal({ visible, onClose, onComplete 
         setIsSubmittingServer(true);
         setServerConfirmation({
             status: "submitting",
-            message: "All policy checks passed locally. Submitting signals for authoritative campus server confirmation..."
+            message: isCheckOut
+                ? "All policy checks passed locally. Submitting signals for check-out confirmation..."
+                : "All policy checks passed locally. Submitting signals for authoritative campus server confirmation..."
         });
 
         // Ensure device signal is populated
@@ -425,28 +430,38 @@ export default function CheckInVerificationModal({ visible, onClose, onComplete 
             collectedSignals.current.device = await getDeviceSignal(collectedSignals.current.biometricAuth);
         }
 
-        const checkInResult = await performCheckIn({
-            device: collectedSignals.current.device,
-            location: collectedSignals.current.location,
-            network: collectedSignals.current.network
-        });
+        const actionResult = isCheckOut
+            ? await performCheckOut({
+                device: collectedSignals.current.device,
+                location: collectedSignals.current.location,
+                network: collectedSignals.current.network
+            })
+            : await performCheckIn({
+                device: collectedSignals.current.device,
+                location: collectedSignals.current.location,
+                network: collectedSignals.current.network
+            });
 
         setIsSubmittingServer(false);
 
-        if (checkInResult.success) {
+        if (actionResult.success) {
             setOverallSuccess(true);
             setServerConfirmation({
                 status: "passed",
-                message: checkInResult.offline
-                    ? "Offline check-in saved to device queue. Will sync automatically."
-                    : "Attendance confirmed and authoritative record saved on server.",
-                diagnostics: checkInResult.offline ? "Offline Queued" : "Authoritative Server Confirmation"
+                message: isCheckOut
+                    ? (actionResult.offline
+                        ? "Offline check-out saved to device queue. Will sync automatically."
+                        : "Departure confirmed and attendance session closed on server.")
+                    : (actionResult.offline
+                        ? "Offline check-in saved to device queue. Will sync automatically."
+                        : "Attendance confirmed and authoritative record saved on server."),
+                diagnostics: actionResult.offline ? "Offline Queued" : "Authoritative Server Confirmation"
             });
             setIsRunning(false);
-            if (onComplete) onComplete(checkInResult);
+            if (onComplete) onComplete(actionResult);
         } else {
-            const blocking = checkInResult.blockingTypes || [];
-            const failMsg = checkInResult.error || "Server attendance verification failed.";
+            const blocking = actionResult.blockingTypes || [];
+            const failMsg = actionResult.error || (isCheckOut ? "Server check-out verification failed." : "Server attendance verification failed.");
 
             setServerConfirmation({
                 status: "failed",
@@ -584,9 +599,13 @@ export default function CheckInVerificationModal({ visible, onClose, onComplete 
                                 <Ionicons name="shield-checkmark" size={14} color="#2563EB" style={{ marginRight: 4 }} />
                                 <Text style={styles.eyebrow}>CAMPUS VERIFICATION POLICY</Text>
                             </View>
-                            <Text style={styles.modalTitle}>Attendance Verification</Text>
+                            <Text style={styles.modalTitle}>
+                                {isCheckOut ? "Check-Out Verification" : "Attendance Verification"}
+                            </Text>
                             <Text style={styles.modalSubtitle}>
-                                Multi-signal verification required by institutional policy.
+                                {isCheckOut
+                                    ? "Multi-signal verification required by policy to record departure."
+                                    : "Multi-signal verification required by institutional policy."}
                             </Text>
                         </View>
                         <TouchableOpacity
@@ -770,7 +789,9 @@ export default function CheckInVerificationModal({ visible, onClose, onComplete 
                                     <View style={styles.successBanner}>
                                         <Ionicons name="checkmark-circle" size={24} color="#16A34A" style={{ marginRight: 8 }} />
                                         <View style={{ flex: 1 }}>
-                                            <Text style={styles.successTitle}>Attendance Recorded!</Text>
+                                            <Text style={styles.successTitle}>
+                                                {isCheckOut ? "Check-Out Recorded!" : "Attendance Recorded!"}
+                                            </Text>
                                             <Text style={styles.successDesc}>
                                                 {serverConfirmation?.message || "All policy checks confirmed. Your attendance is officially logged."}
                                             </Text>

@@ -236,16 +236,19 @@ async function processCheckIn({
 
     const deviceSignal =
         event?.device ||
+        event?.payload?.device ||
         null;
 
 
     const networkSignal =
         event?.network ||
+        event?.payload?.network ||
         null;
 
 
     const locationSignal =
         event?.location ||
+        event?.payload?.location ||
         null;
 
 
@@ -413,16 +416,19 @@ async function processCheckOut({
 
     const deviceSignal =
         event?.device ||
+        event?.payload?.device ||
         null;
 
 
     const networkSignal =
         event?.network ||
+        event?.payload?.network ||
         null;
 
 
     const locationSignal =
         event?.location ||
+        event?.payload?.location ||
         null;
 
 

@@ -9,9 +9,11 @@ export function useColorScheme() {
 
   useEffect(() => {
     let mounted = true;
-    if (mounted) {
-      setHasHydrated(true);
-    }
+    Promise.resolve().then(() => {
+      if (mounted) {
+        setHasHydrated(true);
+      }
+    });
     return () => { mounted = false; };
   }, []);
 

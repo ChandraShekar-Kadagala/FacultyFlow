@@ -3,6 +3,7 @@ import AttendanceRecord from "../../models/AttendanceRecord.js";
 import Faculty from "../../models/Faculty.js";
 
 import { calculateWorkingDuration } from "../../utils/attendance/durationUtils.js";
+import { reconcileOverdueSessions } from "./attendanceReconciliationService.js";
 
 
 // ============================================================
@@ -24,8 +25,11 @@ export async function getAdminAttendance({
     verificationStatus,
 
     search
-
 } = {}) {
+    // Reconcile open sessions from prior days/shifts so admin always sees up-to-date data
+    await reconcileOverdueSessions().catch(err => {
+        console.warn("Session reconciliation error during getAdminAttendance:", err.message);
+    });
 
     const filter = {};
 

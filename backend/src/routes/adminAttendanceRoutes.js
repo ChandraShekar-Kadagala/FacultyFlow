@@ -43,6 +43,31 @@ router.get(
 
 
 // ------------------------------------------------------------
+// MANUAL SESSION RECONCILIATION
+// ------------------------------------------------------------
+
+router.post(
+    "/reconcile",
+    authenticateToken,
+    requireRole("admin"),
+    async (req, res, next) => {
+        try {
+            const { reconcileOverdueSessions } = await import("../services/attendance/attendanceReconciliationService.js");
+            const result = await reconcileOverdueSessions();
+            return res.status(200).json({
+                success: true,
+                message: `Reconciliation completed: ${result.reconciledCount} overdue open sessions auto-closed.`,
+                reconciledCount: result.reconciledCount,
+                records: result.records
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+
+// ------------------------------------------------------------
 // GET FACULTY ATTENDANCE
 // ------------------------------------------------------------
 

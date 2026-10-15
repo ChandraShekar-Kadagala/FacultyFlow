@@ -105,6 +105,28 @@ const attendanceRecordSchema =
         },
 
 
+        autoClosed: {
+
+            type: Boolean,
+
+            default: false,
+
+            index: true
+
+        },
+
+
+        closureReason: {
+
+            type: String,
+
+            default: null,
+
+            trim: true
+
+        },
+
+
         verificationStatus: {
 
             type: String,

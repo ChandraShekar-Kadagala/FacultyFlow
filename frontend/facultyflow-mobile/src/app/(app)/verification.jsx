@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAttendance } from "../../context/AttendanceContext";
 import CheckInVerificationModal from "../../components/CheckInVerificationModal";
 
-function normalizeSignals(verification, attendance) {
+function normalizeSignals(verification, attendance, activePolicy) {
     const rawEvents = verification?.events || verification?.verificationEvents || [];
     const checks = verification?.checks || {};
 
@@ -23,74 +23,54 @@ function normalizeSignals(verification, attendance) {
     };
 
     const hasAttendance = Boolean(attendance?.checkInTime);
+    const requiredSignals = Array.isArray(activePolicy?.requiredSignals) && activePolicy.requiredSignals.length > 0
+        ? activePolicy.requiredSignals.map(s => String(s).toUpperCase())
+        : ["IDENTITY", "LOCATION", "DEVICE", "NETWORK"];
 
-    // 1. Identity
-    const idEvt = findEvent("IDENTITY");
-    const idResult = idEvt?.result || (hasAttendance ? "PASSED" : "PENDING");
-    const idReason = idEvt?.reason || (hasAttendance ? "Faculty credentials validated by authoritative server." : "Awaiting check-in session initiation.");
-
-    // 2. Schedule
-    const schEvt = findEvent("SCHEDULE");
-    const schResult = schEvt?.result || (hasAttendance ? (attendance?.status === "Late" ? "PASSED" : "PASSED") : "PENDING");
-    const schReason = schEvt?.reason || (hasAttendance ? `Evaluated under attendance policy (Status: ${attendance?.status || "Present"}).` : "Evaluated against active institution hours upon check-in.");
-
-    // 3. Location
-    const locEvt = findEvent("LOCATION");
-    const locResult = locEvt?.result || (hasAttendance ? (locEvt?.result || "UNAVAILABLE") : "PENDING");
-    const locReason = locEvt?.reason || (hasAttendance ? "Device GPS signal unavailable or campus perimeter not enforced." : "Requires location permission during check-in.");
-
-    // 4. Device
-    const devEvt = findEvent("DEVICE");
-    const devResult = devEvt?.result || (hasAttendance ? "UNAVAILABLE" : "PENDING");
-    const devReason = devEvt?.reason || "Device biometric/hardware signal not provided or unavailable on this device.";
-
-    // 5. Network
-    const netEvt = findEvent("NETWORK");
-    const netResult = netEvt?.result || (hasAttendance ? "UNAVAILABLE" : "PENDING");
-    const netReason = netEvt?.reason || "Campus Wi-Fi / secure network observation not reported by mobile client.";
-
-    return [
+    const allSignals = [
         {
             key: "IDENTITY",
             name: "Identity Verification",
             icon: "person-circle-outline",
-            result: idResult,
-            reason: idReason,
+            result: findEvent("IDENTITY")?.result || (hasAttendance ? "PASSED" : "PENDING"),
+            reason: findEvent("IDENTITY")?.reason || (hasAttendance ? "Faculty credentials validated by authoritative server." : "Awaiting check-in session initiation."),
             notes: "Matches authenticated session claims against authoritative faculty record in MongoDB."
         },
-        {
+        ...(requiredSignals.includes("SCHEDULE") ? [{
             key: "SCHEDULE",
             name: "Institutional Schedule",
             icon: "time-outline",
-            result: schResult,
-            reason: schReason,
+            result: findEvent("SCHEDULE")?.result || (hasAttendance ? "PASSED" : "PENDING"),
+            reason: findEvent("SCHEDULE")?.reason || (hasAttendance ? `Evaluated under attendance policy (Status: ${attendance?.status || "Present"}).` : "Evaluated against active institution hours upon check-in."),
             notes: "Validates request timestamp against active academic attendance policies."
-        },
+        }] : []),
         {
             key: "LOCATION",
             name: "Campus Geofence Location",
             icon: "location-outline",
-            result: locResult,
-            reason: locReason,
+            result: findEvent("LOCATION")?.result || (hasAttendance ? "PASSED" : "PENDING"),
+            reason: findEvent("LOCATION")?.reason || (hasAttendance ? "Campus geofence validated by authoritative server." : "Requires location permission during check-in."),
             notes: "Evaluates physical campus perimeter without faking coordinates or masking permission denials."
         },
         {
             key: "DEVICE",
-            name: "Device Authenticity",
-            icon: "phone-portrait-outline",
-            result: devResult,
-            reason: devReason,
+            name: "Device Authenticity & Biometrics",
+            icon: "finger-print-outline",
+            result: findEvent("DEVICE")?.result || (hasAttendance ? "PASSED" : "PENDING"),
+            reason: findEvent("DEVICE")?.reason || (hasAttendance ? "Native biometric authentication verified." : "Native biometric authentication required."),
             notes: "Hardware token storage verified. Raw biometric templates are never collected or stored."
         },
         {
             key: "NETWORK",
             name: "Campus Wi-Fi Signal",
             icon: "wifi-outline",
-            result: netResult,
-            reason: netReason,
-            notes: "Institutional SSID / BSSID validation. Unavailable when on cellular or unmanaged networks."
+            result: findEvent("NETWORK")?.result || (hasAttendance ? "PASSED" : "PENDING"),
+            reason: findEvent("NETWORK")?.reason || (hasAttendance ? "Campus network observation validated." : "Evaluated against authorized campus networks."),
+            notes: "Institutional SSID / BSSID validation against authorized campus networks."
         }
     ];
+
+    return allSignals.filter(s => requiredSignals.includes(s.key));
 }
 
 function getResultBadge(result) {
@@ -139,7 +119,7 @@ export default function VerificationScreen() {
 
     const [verificationModalVisible, setVerificationModalVisible] = useState(false);
 
-    const signals = normalizeSignals(verification, attendance);
+    const signals = normalizeSignals(verification, attendance, activePolicy);
     const overallResult = (verification?.result || verificationStatus || "PENDING").toUpperCase();
     const isOverallVerified = overallResult === "VERIFIED" || overallResult === "PASSED";
 

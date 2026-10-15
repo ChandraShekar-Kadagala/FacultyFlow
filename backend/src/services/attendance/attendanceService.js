@@ -17,6 +17,10 @@ import {
     calculateWorkingDuration
 } from "../../utils/attendance/durationUtils.js";
 
+import {
+    reconcileOverdueSessions
+} from "./attendanceReconciliationService.js";
+
 
 // ============================================================
 // FORMAT ATTENDANCE RECORD WITH DURATION
@@ -109,6 +113,11 @@ export async function getTodayAttendance(
     });
     const canonicalId = faculty ? faculty.facultyId : facultyId;
 
+    // Automatically reconcile any overdue open sessions from previous days
+    await reconcileOverdueSessions({ facultyId: canonicalId }).catch(err => {
+        console.warn("Session reconciliation error during getTodayAttendance:", err.message);
+    });
+
     const record = await AttendanceRecord.findOne({
 
         facultyId: { $in: [canonicalId, facultyId] },
@@ -151,6 +160,11 @@ export async function getAttendanceHistory(
         ]
     });
     const canonicalId = faculty ? faculty.facultyId : facultyId;
+
+    // Automatically reconcile overdue open sessions before returning history
+    await reconcileOverdueSessions({ facultyId: canonicalId }).catch(err => {
+        console.warn("Session reconciliation error during getAttendanceHistory:", err.message);
+    });
 
     const records = await AttendanceRecord
         .find({
