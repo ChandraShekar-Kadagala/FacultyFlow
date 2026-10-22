@@ -195,12 +195,12 @@ function mapFormPolicyToBackend(
 
 
     // --------------------------------------------------------
-    // SCHEDULE (Only when scheduled mode is active or explicitly checked)
+    // SCHEDULE (Only when scheduled mode is strictly active)
     // --------------------------------------------------------
 
     if (
-        policy.attendanceMode === "SCHEDULED" ||
-        policy.scheduleVerification
+        policy.attendanceMode === "SCHEDULED" &&
+        policy.scheduleVerification !== false
     ) {
 
         requiredSignals.push(

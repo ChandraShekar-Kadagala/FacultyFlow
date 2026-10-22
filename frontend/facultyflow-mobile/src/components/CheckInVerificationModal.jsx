@@ -60,6 +60,7 @@ export default function CheckInVerificationModal({ visible, onClose, onComplete,
 
     const stepsRef = useRef([]);
     const policyRef = useRef(activePolicy);
+    const prevVisibleRef = useRef(false);
 
     useEffect(() => {
         stepsRef.current = steps;
@@ -526,9 +527,15 @@ export default function CheckInVerificationModal({ visible, onClose, onComplete,
         runVerificationSequence(stepIndex);
     };
 
-    // Initialize steps whenever modal opens
+    // Initialize steps whenever modal opens (transition from closed to open)
     useEffect(() => {
+        const wasVisible = prevVisibleRef.current;
+        prevVisibleRef.current = visible;
+
         if (!visible) return;
+
+        // If the modal was already visible and just re-rendered, do not wipe out steps or restart sequence
+        if (wasVisible) return;
 
         let isMounted = true;
 
@@ -576,7 +583,7 @@ export default function CheckInVerificationModal({ visible, onClose, onComplete,
             isMounted = false;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [visible, activePolicy, fetchPolicy]);
+    }, [visible]);
 
     // Progress computation
     const totalSteps = steps.length || 1;

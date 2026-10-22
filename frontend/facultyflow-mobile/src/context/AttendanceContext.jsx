@@ -224,7 +224,7 @@ export function AttendanceProvider({ children }) {
         const initAttendance = async () => {
             if (accessToken) {
                 await Promise.allSettled([
-                    refreshAttendance(false),
+                    refreshAttendance(true),
                     refreshPendingCount(),
                     fetchPolicy()
                 ]);

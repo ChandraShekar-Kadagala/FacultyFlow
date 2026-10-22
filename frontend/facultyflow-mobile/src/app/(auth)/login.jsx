@@ -23,6 +23,7 @@ import {
 import {
     useAuth
 } from "../../context/AuthContext";
+import LoadingScreen from "../../components/LoadingScreen";
 
 
 function LoginScreen() {
@@ -30,6 +31,7 @@ function LoginScreen() {
     const {
         login,
         isAuthenticated,
+        loading: authLoading,
         sessionExpired,
         resetSessionExpired
     } = useAuth();
@@ -136,6 +138,10 @@ function LoginScreen() {
 
         }
 
+    }
+
+    if (authLoading) {
+        return <LoadingScreen message="Checking session..." />;
     }
 
     if (isAuthenticated) {

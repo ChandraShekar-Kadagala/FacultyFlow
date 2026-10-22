@@ -127,12 +127,25 @@ export async function getLocationSignal() {
 
         let position = null;
         try {
-            position = await Location.getCurrentPositionAsync({
+            // Guard getCurrentPositionAsync with an 8-second timeout to prevent indefinite hanging on cold fixes
+            const currentPositionPromise = Location.getCurrentPositionAsync({
                 accuracy: Location.Accuracy.Balanced
             });
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("LOCATION_TIMEOUT")), 8000)
+            );
+            position = await Promise.race([currentPositionPromise, timeoutPromise]);
         } catch (_posErr) {
             if (Location.getLastKnownPositionAsync) {
-                position = await Location.getLastKnownPositionAsync();
+                try {
+                    const lastKnown = await Location.getLastKnownPositionAsync();
+                    // Accept cached location if acquired within the past 5 minutes (300,000 ms)
+                    if (lastKnown?.coords && lastKnown.timestamp && (Date.now() - lastKnown.timestamp < 300000)) {
+                        position = lastKnown;
+                    }
+                } catch (_lastErr) {
+                    // Fall through
+                }
             }
         }
 
@@ -140,7 +153,7 @@ export async function getLocationSignal() {
             return {
                 signal: null,
                 permissionStatus: "unavailable",
-                message: "Unable to retrieve GPS coordinates. Ensure your device has clear satellite reception or Wi-Fi scanning enabled."
+                message: "Unable to retrieve GPS coordinates within allowable timeout. Ensure device GPS is active and has clear reception."
             };
         }
 

@@ -118,15 +118,17 @@ export default function VerificationScreen() {
     } = useAttendance();
 
     const [verificationModalVisible, setVerificationModalVisible] = useState(false);
+    const [verificationModalMode, setVerificationModalMode] = useState("check_in");
 
     const signals = normalizeSignals(verification, attendance, activePolicy);
     const overallResult = (verification?.result || verificationStatus || "PENDING").toUpperCase();
     const isOverallVerified = overallResult === "VERIFIED" || overallResult === "PASSED";
 
     const isCheckedIn = Boolean(attendance?.checkInTime);
+    const isCheckedOut = Boolean(attendance?.checkOutTime);
     const requiredSignals = Array.isArray(activePolicy?.requiredSignals) && activePolicy.requiredSignals.length > 0
         ? activePolicy.requiredSignals
-        : ["IDENTITY", "LOCATION", "DEVICE"];
+        : ["IDENTITY", "LOCATION", "DEVICE", "NETWORK"];
 
     return (
         <View style={styles.root}>
@@ -178,13 +180,33 @@ export default function VerificationScreen() {
                     {!isCheckedIn ? (
                         <TouchableOpacity
                             style={styles.checkInModalLaunchBtn}
-                            onPress={() => setVerificationModalVisible(true)}
+                            onPress={() => {
+                                setVerificationModalMode("check_in");
+                                setVerificationModalVisible(true);
+                            }}
                             activeOpacity={0.8}
                         >
                             <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
                             <Text style={styles.checkInModalLaunchBtnText}>Run Verification Check-In</Text>
                         </TouchableOpacity>
-                    ) : null}
+                    ) : !isCheckedOut ? (
+                        <TouchableOpacity
+                            style={[styles.checkInModalLaunchBtn, styles.checkOutModalLaunchBtn]}
+                            onPress={() => {
+                                setVerificationModalMode("check_out");
+                                setVerificationModalVisible(true);
+                            }}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="log-out-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                            <Text style={styles.checkInModalLaunchBtnText}>Run Verification Check-Out</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={styles.completedCyclePill}>
+                            <Ionicons name="checkmark-done-circle" size={16} color="#16A34A" style={{ marginRight: 6 }} />
+                            <Text style={styles.completedCycleText}>Attendance Cycle Completed Today</Text>
+                        </View>
+                    )}
                 </View>
 
 
@@ -266,6 +288,7 @@ export default function VerificationScreen() {
 
         <CheckInVerificationModal
             visible={verificationModalVisible}
+            mode={verificationModalMode}
             onClose={() => setVerificationModalVisible(false)}
             onComplete={() => {
                 setVerificationModalVisible(false);
@@ -348,6 +371,25 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: "800",
         color: "#1D4ED8"
+    },
+    checkOutModalLaunchBtn: {
+        backgroundColor: "#D97706",
+        shadowColor: "#D97706"
+    },
+    completedCyclePill: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#DCFCE7",
+        borderRadius: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        marginTop: 12
+    },
+    completedCycleText: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#15803D"
     },
     checkInModalLaunchBtn: {
         flexDirection: "row",

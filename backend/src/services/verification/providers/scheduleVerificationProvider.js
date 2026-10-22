@@ -8,19 +8,13 @@ import {
 // ============================================================
 
 export async function verifySchedule({
-
     action = "CHECK_IN",
-
-    serverTime = new Date()
-
+    serverTime = new Date(),
+    policy = null
 } = {}) {
-
     return verifyScheduleTime({
-
         action,
-
-        serverTime
-
+        serverTime,
+        policy
     });
-
 }

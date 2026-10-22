@@ -43,7 +43,9 @@ export async function verifyScheduleTime({
 
     serverTime = new Date(),
 
-    action = "CHECK_IN"
+    action = "CHECK_IN",
+
+    policy: inputPolicy = null
 
 } = {}) {
 
@@ -85,7 +87,7 @@ export async function verifyScheduleTime({
     // --------------------------------------------------------
 
     const policy =
-        await getActiveAttendancePolicy();
+        inputPolicy || (await getActiveAttendancePolicy());
 
 
     // --------------------------------------------------------
@@ -116,6 +118,34 @@ export async function verifyScheduleTime({
 
         };
 
+    }
+
+
+    // --------------------------------------------------------
+    // Flexible attendance check
+    // --------------------------------------------------------
+
+    const isScheduleRequired =
+        Array.isArray(policy.requiredSignals) &&
+        policy.requiredSignals.includes("SCHEDULE");
+
+    const isScheduledMode =
+        policy.attendanceMode === "SCHEDULED" ||
+        (isScheduleRequired && policy.attendanceMode !== "FLEXIBLE");
+
+    if (!isScheduledMode) {
+        return {
+            type: "SCHEDULE",
+            result:
+                VERIFICATION_RESULTS.VERIFIED,
+            reason:
+                "Flexible attendance policy: attendance is allowed at any time on working days.",
+            metadata: {
+                attendanceMode: "FLEXIBLE",
+                timeSource:
+                    "SERVER"
+            }
+        };
     }
 
 
